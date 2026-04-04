@@ -1,6 +1,0 @@
-## User settings
-xcuserdata/
-.build
-
-## Credentials
-Example/Shared/Config.swift

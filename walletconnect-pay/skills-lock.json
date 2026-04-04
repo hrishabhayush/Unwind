@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "walletconnect-pay-merchant": {
+      "source": "WalletConnect/skills",
+      "ref": "main",
+      "sourceType": "github",
+      "computedHash": "1e2ab1090383d0ecabd9821c4dfc1fdf3354ac4263da09dcb2dc733ca3bae05b"
+    }
+  }
+}

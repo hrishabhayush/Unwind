@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WalletConnect Pay — demo</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        background: #0f0f12;
+        color: #eee;
+      }
+      body {
+        max-width: 28rem;
+        margin: 0 auto;
+        padding: 1.25rem;
+      }
+      h1 {
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+      label {
+        display: block;
+        font-size: 0.8rem;
+        color: #9b9ba8;
+        margin-bottom: 0.35rem;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.6rem 0.65rem;
+        border-radius: 8px;
+        border: 1px solid #333;
+        background: #1a1a20;
+        color: #fff;
+        margin-bottom: 1rem;
+      }
+      button {
+        width: 100%;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 10px;
+        background: #47a8ff;
+        color: #051018;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .card {
+        background: #18181f;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1.25rem;
+        border: 1px solid #2a2a32;
+      }
+      .qr-wrap {
+        display: flex;
+        justify-content: center;
+        margin: 1rem 0;
+      }
+      .qr-wrap img {
+        border-radius: 12px;
+        background: #fff;
+        padding: 8px;
+      }
+      .status {
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+      .err {
+        color: #ff8a8a;
+        font-size: 0.85rem;
+        margin-top: 0.75rem;
+        white-space: pre-wrap;
+      }
+      a {
+        color: #7ec8ff;
+      }
+      .hint {
+        font-size: 0.75rem;
+        color: #666;
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WalletConnect Pay — local demo</h1>
+    <p class="hint">
+      Create a payment → scan the QR with your phone → complete checkout in the browser / wallet.
+      Keys stay on the server (<code>.env</code>).
+    </p>
+
+    <label for="usd">Amount (USD)</label>
+    <input id="usd" type="number" min="0.01" step="0.01" value="1" />
+
+    <button type="button" id="go">Create payment &amp; show QR</button>
+    <p id="err" class="err" hidden></p>
+
+    <div id="panel" class="card" hidden>
+      <div class="status">
+        <strong>Status:</strong> <span id="st">—</span><br />
+        <strong>Payment ID:</strong> <span id="pid">—</span>
+      </div>
+      <div class="qr-wrap">
+        <img id="qr" alt="Payment QR" width="280" height="280" hidden />
+      </div>
+      <p class="hint">
+        Or open link:
+        <a id="link" href="#" target="_blank" rel="noopener">gateway</a>
+      </p>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let pollTimer = null;
+
+      function stopPoll() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+
+      async function poll(paymentId) {
+        stopPoll();
+        const tick = async () => {
+          try {
+            const r = await fetch("/api/payments/" + encodeURIComponent(paymentId) + "/status");
+            const j = await r.json();
+            $("st").textContent = j.status ?? JSON.stringify(j);
+            if (j.isFinal) {
+              stopPoll();
+              $("go").disabled = false;
+              return;
+            }
+            pollTimer = setTimeout(tick, Math.max(500, j.pollInMs || 2000));
+          } catch (e) {
+            $("st").textContent = "poll error: " + e;
+            $("go").disabled = false;
+          }
+        };
+        tick();
+      }
+
+      $("go").addEventListener("click", async () => {
+        $("err").hidden = true;
+        $("panel").hidden = true;
+        $("go").disabled = true;
+        stopPoll();
+
+        const usd = parseFloat($("usd").value, 10) || 1;
+        const amountCents = Math.round(usd * 100);
+
+        try {
+          const r = await fetch("/api/payments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ amountCents }),
+          });
+          const j = await r.json();
+          if (!r.ok) {
+            $("err").textContent = JSON.stringify(j, null, 2);
+            $("err").hidden = false;
+            $("go").disabled = false;
+            return;
+          }
+          $("panel").hidden = false;
+          $("pid").textContent = j.paymentId || "—";
+          $("st").textContent = j.status || "requires_action";
+          if (j.qrDataUrl) {
+            $("qr").src = j.qrDataUrl;
+            $("qr").hidden = false;
+          }
+          if (j.gatewayUrl) {
+            $("link").href = j.gatewayUrl;
+            $("link").textContent = "Open payment page";
+          }
+          if (j.paymentId) poll(j.paymentId);
+        } catch (e) {
+          $("err").textContent = String(e);
+          $("err").hidden = false;
+          $("go").disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
