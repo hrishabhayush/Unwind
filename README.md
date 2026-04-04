@@ -6,14 +6,53 @@ Non-custodial payment infrastructure for crypto commerce. Merchants accept stabl
 
 ```mermaid
 flowchart LR
-    A[Customer] -->|pays USDC| B[WalletConnect Pay]
-    B -->|settles| C[Merchant Vault]
-    C -->|escrows via payFromContract| D[RefundProtocol]
+    Customer -->|pays USDC| WC[WalletConnect Pay]
+    WC -->|settles| Vault[Merchant Vault]
+    Vault -->|escrows| RP[RefundProtocol]
+    RP -->|withdraw| Merchant
+    RP -->|refund| Customer
+    RP -->|reclaim| Customer
+```
 
-    D -->|lockup expires| E[Withdraw — Merchant]
-    D -->|within refund window| F[Refund — Customer]
-    D -->|lockup + grace period, unclaimed| G[Reclaim — Payer]
-    D -.->|early release, EIP-712 sig| H[Early Withdraw — Arbiter]
+### Payment sequence
+
+```mermaid
+sequenceDiagram
+    participant Customer
+    participant POS as POS App
+    participant WC as WalletConnect Pay
+    participant Vault as Merchant Vault
+    participant RP as RefundProtocol
+    participant Merchant
+
+    Merchant->>POS: create payment request
+    POS->>WC: POST /v1/payments
+    WC-->>POS: gateway URL + QR code
+    POS-->>Customer: display QR code
+    Customer->>WC: scan & pay USDC
+    WC->>Vault: settle payment
+    Vault->>RP: payFromContract(payer, merchant, amount)
+    RP-->>RP: lock funds for lockup period
+
+    alt Lockup expires
+        Merchant->>RP: withdraw()
+        RP-->>Merchant: release USDC
+    end
+
+    alt Refund requested (within window)
+        Merchant->>RP: refundByRecipient()
+        RP-->>Customer: return USDC
+    end
+
+    alt Arbiter-forced refund
+        Note over RP: arbiter covers shortfall, merchant gets debt
+        RP-->>Customer: return USDC
+    end
+
+    alt Unclaimed after grace period
+        Customer->>RP: reclaim()
+        RP-->>Customer: return USDC
+    end
 ```
 
 1. Merchant creates a payment request from the POS app
