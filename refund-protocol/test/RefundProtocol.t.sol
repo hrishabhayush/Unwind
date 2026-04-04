@@ -55,10 +55,11 @@ contract RefundProtocolTest is Test {
         vm.startPrank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
-        (address to, uint256 amount,, address refundAddr,,) = refundProtocol.payments(0);
+        (address to, uint256 amount,, address refundAddr,,,, address payer) = refundProtocol.payments(0);
         assertEq(to, receiver);
         assertEq(amount, 100);
         assertEq(refundAddr, refundTo);
+        assertEq(payer, user);
         assertEq(refundProtocol.balances(receiver), 100);
     }
 
@@ -542,7 +543,7 @@ contract RefundProtocolTest is Test {
         vm.prank(refundTo);
         refundProtocol.updateRefundTo(0, refundTo2);
 
-        (,,, address refundAddr,,) = refundProtocol.payments(0);
+        (,,, address refundAddr,,,,) = refundProtocol.payments(0);
         assertEq(refundAddr, refundTo2);
     }
 
@@ -565,6 +566,10 @@ contract RefundProtocolTest is Test {
     }
 
     function testRefundByRecipient() public {
+        // Use lockup so refund window is open
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
@@ -577,6 +582,9 @@ contract RefundProtocolTest is Test {
     }
 
     function testRefundByRecipientUnauthorized() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
@@ -586,6 +594,9 @@ contract RefundProtocolTest is Test {
     }
 
     function testRefundByArbiter() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
@@ -598,14 +609,25 @@ contract RefundProtocolTest is Test {
     }
 
     function testRefundByArbiterWhenArbiterFundsAreUsed() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
         uint256[] memory paymentIDs = new uint256[](1);
         paymentIDs[0] = 0;
 
-        vm.prank(receiver);
-        refundProtocol.withdraw(paymentIDs);
+        // Early withdraw so balance goes to zero but payment still has lockup window open
+        uint256[] memory withdrawalAmounts = new uint256[](1);
+        withdrawalAmounts[0] = 100;
+        uint256 feeAmount = 0;
+
+        (uint8 v, bytes32 r, bytes32 s) =
+            _generateEarlyWithdrawalSignature(paymentIDs, withdrawalAmounts, feeAmount, expiry, 0, receiverPrivateKey);
+
+        vm.prank(arbiter);
+        refundProtocol.earlyWithdrawByArbiter(paymentIDs, withdrawalAmounts, feeAmount, expiry, 0, receiver, v, r, s);
 
         vm.startPrank(arbiter);
         refundProtocol.depositArbiterFunds(100);
@@ -620,6 +642,9 @@ contract RefundProtocolTest is Test {
     }
 
     function testRefundByArbiterUnauthorized() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
@@ -629,14 +654,23 @@ contract RefundProtocolTest is Test {
     }
 
     function testSettleDebt() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
         uint256[] memory paymentIDs = new uint256[](1);
         paymentIDs[0] = 0;
+        uint256[] memory withdrawalAmounts = new uint256[](1);
+        withdrawalAmounts[0] = 100;
+        uint256 feeAmount = 0;
 
-        vm.prank(receiver);
-        refundProtocol.withdraw(paymentIDs);
+        (uint8 v, bytes32 r, bytes32 s) =
+            _generateEarlyWithdrawalSignature(paymentIDs, withdrawalAmounts, feeAmount, expiry, 0, receiverPrivateKey);
+
+        vm.prank(arbiter);
+        refundProtocol.earlyWithdrawByArbiter(paymentIDs, withdrawalAmounts, feeAmount, expiry, 0, receiver, v, r, s);
 
         vm.startPrank(arbiter);
         refundProtocol.depositArbiterFunds(100);
@@ -656,14 +690,23 @@ contract RefundProtocolTest is Test {
     }
 
     function testSettleDebtPartially() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo);
 
         uint256[] memory paymentIDs = new uint256[](1);
         paymentIDs[0] = 0;
+        uint256[] memory withdrawalAmounts = new uint256[](1);
+        withdrawalAmounts[0] = 100;
+        uint256 feeAmount = 0;
 
-        vm.prank(receiver);
-        refundProtocol.withdraw(paymentIDs);
+        (uint8 v, bytes32 r, bytes32 s) =
+            _generateEarlyWithdrawalSignature(paymentIDs, withdrawalAmounts, feeAmount, expiry, 0, receiverPrivateKey);
+
+        vm.prank(arbiter);
+        refundProtocol.earlyWithdrawByArbiter(paymentIDs, withdrawalAmounts, feeAmount, expiry, 0, receiver, v, r, s);
 
         vm.startPrank(arbiter);
         refundProtocol.depositArbiterFunds(100);
@@ -680,6 +723,167 @@ contract RefundProtocolTest is Test {
         assertEq(refundProtocol.balances(receiver), 0);
         assertEq(refundProtocol.balances(arbiter), 50);
         assertEq(refundProtocol.debts(receiver), 50);
+    }
+
+    // ========== Settlement Finality Tests ==========
+
+    function testRefundByRecipientAfterExpiry() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Warp past releaseTimestamp (refund expiry)
+        vm.warp(block.timestamp + 3600);
+
+        vm.prank(receiver);
+        vm.expectRevert(abi.encodeWithSelector(RefundProtocol.RefundWindowExpired.selector, 0));
+        refundProtocol.refundByRecipient(0);
+    }
+
+    function testRefundByArbiterAfterExpiry() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Warp past releaseTimestamp (refund expiry)
+        vm.warp(block.timestamp + 3600);
+
+        vm.prank(arbiter);
+        vm.expectRevert(abi.encodeWithSelector(RefundProtocol.RefundWindowExpired.selector, 0));
+        refundProtocol.refundByArbiter(0);
+    }
+
+    function testRefundByRecipientDuringLockup() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Refund during lockup (before releaseTimestamp) should succeed
+        vm.warp(block.timestamp + 1800); // halfway through lockup
+
+        vm.prank(receiver);
+        refundProtocol.refundByRecipient(0);
+
+        assertEq(usdc.balanceOf(refundTo), 100);
+        assertEq(refundProtocol.balances(receiver), 0);
+    }
+
+    function testRefundByArbiterDuringLockup() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Refund during lockup should succeed
+        vm.warp(block.timestamp + 1800);
+
+        vm.prank(arbiter);
+        refundProtocol.refundByArbiter(0);
+
+        assertEq(usdc.balanceOf(refundTo), 100);
+        assertEq(refundProtocol.balances(receiver), 0);
+    }
+
+    // ========== Payer Reclaim Tests ==========
+
+    function testReclaimAfterGracePeriod() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        uint256 reclaimGracePeriod = refundProtocol.RECLAIM_GRACE_PERIOD();
+
+        // Warp past lockup + grace period
+        vm.warp(block.timestamp + 3600 + reclaimGracePeriod);
+
+        vm.prank(user);
+        refundProtocol.reclaim(0);
+
+        assertEq(usdc.balanceOf(user), 1000); // 1000 minted - 100 paid + 100 reclaimed
+        assertEq(refundProtocol.balances(receiver), 0);
+    }
+
+    function testReclaimBeforeGracePeriod() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Warp past lockup but not past grace period
+        vm.warp(block.timestamp + 3600 + 1000);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(RefundProtocol.ReclaimNotYetAvailable.selector, 0));
+        refundProtocol.reclaim(0);
+    }
+
+    function testReclaimAfterWithdraw() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Merchant withdraws after lockup
+        vm.warp(block.timestamp + 3600);
+        uint256[] memory paymentIDs = new uint256[](1);
+        paymentIDs[0] = 0;
+        vm.prank(receiver);
+        refundProtocol.withdraw(paymentIDs);
+
+        uint256 reclaimGracePeriod = refundProtocol.RECLAIM_GRACE_PERIOD();
+        vm.warp(block.timestamp + reclaimGracePeriod);
+
+        // Payer tries to reclaim but no balance left (withdrawnAmount == amount)
+        vm.prank(user);
+        vm.expectRevert(RefundProtocol.InsufficientFunds.selector);
+        refundProtocol.reclaim(0);
+    }
+
+    function testReclaimAfterRefund() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        // Refund during lockup
+        vm.prank(receiver);
+        refundProtocol.refundByRecipient(0);
+
+        uint256 reclaimGracePeriod = refundProtocol.RECLAIM_GRACE_PERIOD();
+        vm.warp(block.timestamp + 3600 + reclaimGracePeriod);
+
+        // Already refunded
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(RefundProtocol.PaymentRefunded.selector, 0));
+        refundProtocol.reclaim(0);
+    }
+
+    function testReclaimUnauthorized() public {
+        vm.prank(arbiter);
+        refundProtocol.setLockupSeconds(receiver, 3600);
+
+        vm.prank(user);
+        refundProtocol.pay(receiver, 100, refundTo);
+
+        uint256 reclaimGracePeriod = refundProtocol.RECLAIM_GRACE_PERIOD();
+        vm.warp(block.timestamp + 3600 + reclaimGracePeriod);
+
+        // Non-payer tries to reclaim
+        vm.prank(receiver);
+        vm.expectRevert(RefundProtocol.CallerNotAllowed.selector);
+        refundProtocol.reclaim(0);
     }
 
     function _generateEarlyWithdrawalSignature(

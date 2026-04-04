@@ -16,8 +16,9 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract RefundProtocol is EIP712 {
+contract RefundProtocol is EIP712, ReentrancyGuard {
     struct Payment {
         address to;
         uint256 amount;
@@ -25,9 +26,12 @@ contract RefundProtocol is EIP712 {
         address refundTo;
         uint256 withdrawnAmount;
         bool refunded;
+        uint256 refundExpiryTimestamp;
+        address payer;
     }
 
     uint256 public constant MAX_LOCKUP_SECONDS = 60 * 60 * 24 * 180; // 180 days
+    uint256 public constant RECLAIM_GRACE_PERIOD = 60 * 60 * 24 * 30; // 30 days
     bytes32 public constant EARLY_WITHDRAWAL_TYPEHASH = keccak256(
         "EarlyWithdrawalByArbiter(uint256[] paymentIDs,uint256[] withdrawalAmounts,uint256 feeAmount,uint256 expiry,uint256 salt)"
     );
@@ -46,12 +50,14 @@ contract RefundProtocol is EIP712 {
         address indexed to,
         uint256 amount,
         uint256 releaseTimestamp,
-        address indexed refundTo
+        address indexed refundTo,
+        uint256 refundExpiryTimestamp
     );
     event Refund(uint256 indexed paymentID, address indexed refundTo, uint256 amount);
     event RefundToUpdated(uint256 indexed paymentID, address indexed oldRefundTo, address indexed newRefundTo);
     event Withdrawal(address indexed to, uint256 amount);
     event WithdrawalFeePaid(address indexed recipient, uint256 amount);
+    event Reclaim(uint256 indexed paymentID, address indexed payer, uint256 amount);
 
     error CallerNotAllowed();
     error PaymentIsStillLocked(uint256 paymentID);
@@ -66,6 +72,8 @@ contract RefundProtocol is EIP712 {
     error PaymentRefunded(uint256 paymentID);
     error LockupSecondsExceedsMax();
     error MismatchedEarlyWithdrawalArrays();
+    error RefundWindowExpired(uint256 paymentID);
+    error ReclaimNotYetAvailable(uint256 paymentID);
 
     constructor(address _arbiter, address _usdc, string memory eip712Name, string memory eip712version)
         EIP712(eip712Name, eip712version)
@@ -96,18 +104,19 @@ contract RefundProtocol is EIP712 {
      * @param amount - amount of USDC to send
      * @param refundTo - address to refund to if triggered
      */
-    function pay(address to, uint256 amount, address refundTo) external {
+    function pay(address to, uint256 amount, address refundTo) external nonReentrant {
         if (refundTo == address(0)) {
             revert RefundToIsZeroAddress();
         }
 
         uint256 recipientlockupSeconds = lockupSeconds[to];
+        uint256 releaseTimestamp = block.timestamp + recipientlockupSeconds;
 
         fiatToken.transferFrom(msg.sender, address(this), amount);
-        payments[nonce] = Payment(to, amount, block.timestamp + recipientlockupSeconds, refundTo, 0, false);
+        payments[nonce] = Payment(to, amount, releaseTimestamp, refundTo, 0, false, releaseTimestamp, msg.sender);
         balances[to] += amount;
 
-        emit PaymentCreated(nonce, to, amount, block.timestamp + recipientlockupSeconds, refundTo);
+        emit PaymentCreated(nonce, to, amount, releaseTimestamp, refundTo, releaseTimestamp);
         nonce += 1;
     }
 
@@ -116,7 +125,7 @@ contract RefundProtocol is EIP712 {
      * This function is callable only by the recipient of the payment, and can only be payed by the recipient.
      * @param paymentID payment to refund
      */
-    function refundByRecipient(uint256 paymentID) external {
+    function refundByRecipient(uint256 paymentID) external nonReentrant {
         Payment memory payment = payments[paymentID];
         if (msg.sender != payment.to) {
             revert CallerNotAllowed();
@@ -140,7 +149,7 @@ contract RefundProtocol is EIP712 {
      * This function is callable only by the arbiter.
      * @param paymentID payment to refund
      */
-    function refundByArbiter(uint256 paymentID) external onlyArbiter {
+    function refundByArbiter(uint256 paymentID) external onlyArbiter nonReentrant {
         Payment memory payment = payments[paymentID];
 
         uint256 recipientBalance = balances[payment.to];
@@ -175,7 +184,7 @@ contract RefundProtocol is EIP712 {
      * Funds will be drawn from the arbiter address and added to the arbiter balance.
      * @param amount amount to deposit
      */
-    function depositArbiterFunds(uint256 amount) external onlyArbiter {
+    function depositArbiterFunds(uint256 amount) external onlyArbiter nonReentrant {
         fiatToken.transferFrom(msg.sender, address(this), amount);
         balances[arbiter] += amount;
     }
@@ -185,7 +194,7 @@ contract RefundProtocol is EIP712 {
      * Funds will be drawn from the arbiter balance and remitted to the arbiter address.
      * @param amount amount to withdraw
      */
-    function withdrawArbiterFunds(uint256 amount) external onlyArbiter {
+    function withdrawArbiterFunds(uint256 amount) external onlyArbiter nonReentrant {
         uint256 arbiterBalance = balances[arbiter];
         if (amount > arbiterBalance) {
             revert InsufficientFunds();
@@ -216,7 +225,7 @@ contract RefundProtocol is EIP712 {
      * 3. The payment has already been refunded
      * @param paymentIDs an array of payments to release
      */
-    function withdraw(uint256[] calldata paymentIDs) external {
+    function withdraw(uint256[] calldata paymentIDs) external nonReentrant {
         _settleDebt(msg.sender);
 
         uint256 totalAmount = 0;
@@ -269,7 +278,7 @@ contract RefundProtocol is EIP712 {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external onlyArbiter {
+    ) external onlyArbiter nonReentrant {
         bytes32 withdrawalInfoHash = _hashEarlyWithdrawalInfo(paymentIDs, withdrawalAmounts, feeAmount, expiry, salt);
 
         // prevent replay attacks
@@ -342,6 +351,37 @@ contract RefundProtocol is EIP712 {
     }
 
     /**
+     * Allows the payer to reclaim funds if the arbiter is offline and the merchant
+     * has not withdrawn or refunded. Only available after lockup + grace period.
+     * @param paymentID the payment ID to reclaim
+     */
+    function reclaim(uint256 paymentID) external nonReentrant {
+        Payment memory payment = payments[paymentID];
+
+        if (msg.sender != payment.payer) {
+            revert CallerNotAllowed();
+        }
+        if (block.timestamp < payment.releaseTimestamp + RECLAIM_GRACE_PERIOD) {
+            revert ReclaimNotYetAvailable(paymentID);
+        }
+        if (payment.refunded) {
+            revert PaymentRefunded(paymentID);
+        }
+
+        uint256 reclaimAmount = payment.amount - payment.withdrawnAmount;
+        if (reclaimAmount == 0) {
+            revert InsufficientFunds();
+        }
+
+        balances[payment.to] -= reclaimAmount;
+        payments[paymentID].refunded = true;
+
+        fiatToken.transfer(msg.sender, reclaimAmount);
+
+        emit Reclaim(paymentID, msg.sender, reclaimAmount);
+    }
+
+    /**
      * External function to hash early withdrawal information
      * @param paymentIDs an array of payment IDS to release
      * @param withdrawalAmounts an array of amounts to withdraw from those payment IDs
@@ -368,9 +408,13 @@ contract RefundProtocol is EIP712 {
         if (payment.refunded) {
             revert PaymentRefunded(paymentID);
         }
-        fiatToken.transfer(payment.refundTo, payment.amount);
+        if (block.timestamp >= payment.refundExpiryTimestamp) {
+            revert RefundWindowExpired(paymentID);
+        }
 
         payments[paymentID].refunded = true;
+
+        fiatToken.transfer(payment.refundTo, payment.amount);
 
         emit Refund(paymentID, payment.refundTo, payment.amount);
     }
