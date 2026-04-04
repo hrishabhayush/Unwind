@@ -1,7 +1,8 @@
 import { BorderRadius, Spacing } from "@/constants/spacing";
 import { useTheme } from "@/hooks/use-theme-color";
-import { formatShortDate } from "@/utils/misc";
-import { PaymentRecord } from "@/utils/types";
+import { formatCardDateTime } from "@/utils/misc";
+import { formatFiatAmount } from "@/utils/currency";
+import { PaymentRecord, PaymentStatus } from "@/utils/types";
 import { memo } from "react";
 import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import { Button } from "./button";
@@ -14,33 +15,55 @@ interface TransactionCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
+function getStatusAccentColor(status: PaymentStatus): string {
+  switch (status) {
+    case "succeeded":
+      return "#30A46B";
+    case "failed":
+    case "expired":
+    case "cancelled":
+      return "#DF4A34";
+    case "requires_action":
+    case "processing":
+    default:
+      return "#4F4F4F";
+  }
+}
+
 function TransactionCardBase({
   payment,
   onPress,
   style,
 }: TransactionCardProps) {
   const theme = useTheme();
+  const accentColor = getStatusAccentColor(payment.status);
 
   return (
     <Button
       onPress={onPress}
       style={[
         styles.container,
-        { backgroundColor: theme["foreground-primary"] },
+        {
+          backgroundColor: theme["foreground-primary"],
+          borderBottomColor: theme["border-primary"],
+        },
         style,
       ]}
     >
+      <View
+        style={[styles.accentBorder, { backgroundColor: accentColor }]}
+      />
       <View style={styles.leftContent}>
-        <ThemedText fontSize={16} lineHeight={20} color="text-primary">
-          {payment.fiatAmount?.display.formatted ?? "-"}
-        </ThemedText>
         <ThemedText
-          fontSize={14}
-          lineHeight={18}
-          color="text-secondary"
-          style={styles.date}
+          fontSize={18}
+          lineHeight={24}
+          color="text-primary"
+          style={styles.amountText}
         >
-          {formatShortDate(payment.createdAt)}
+          {formatFiatAmount(payment.fiatAmount ? parseInt(payment.fiatAmount.value) : undefined, payment.fiatAmount?.unit)}
+        </ThemedText>
+        <ThemedText fontSize={12} lineHeight={16} color="text-secondary">
+          {formatCardDateTime(payment.createdAt)}
         </ThemedText>
       </View>
       <StatusBadge status={payment.status} />
@@ -55,15 +78,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: Spacing["spacing-6"],
-    borderRadius: BorderRadius["3"],
+    paddingVertical: Spacing["spacing-4"],
+    paddingRight: Spacing["spacing-5"],
+    paddingLeft: 0,
+    borderRadius: BorderRadius["2"],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  accentBorder: {
+    width: 3,
+    alignSelf: "stretch",
+    marginRight: Spacing["spacing-4"],
+    borderRadius: 1,
   },
   leftContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing["spacing-2"],
+    flex: 1,
+    flexDirection: "column",
+    gap: Spacing["spacing-1"],
   },
-  date: {
-    marginLeft: Spacing["spacing-1"],
+  amountText: {
+    fontWeight: "600",
   },
 });

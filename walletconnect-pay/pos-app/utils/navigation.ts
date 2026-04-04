@@ -1,9 +1,23 @@
 import { Colors } from "@/constants/theme";
 import { Href, router } from "expo-router";
 
-export const shouldCenterHeaderTitle = (routeName: string) => {
-  return routeName === "index" || routeName === "payment-success";
+/** Routes that show the brand logo centered instead of a text title */
+export const isLogoScreen = (routeName: string): boolean =>
+  routeName === "index" || routeName === "payment-success";
+
+export const shouldCenterHeaderTitle = isLogoScreen;
+
+const SCREEN_TITLES: Record<string, string> = {
+  amount: "New Payment",
+  scan: "Awaiting Payment",
+  "payment-failure": "Payment Failed",
+  settings: "Settings",
+  activity: "Activity",
+  logs: "Logs",
 };
+
+export const getScreenTitle = (routeName: string): string =>
+  SCREEN_TITLES[routeName] ?? "";
 
 export const getHeaderBackgroundColor = (
   routeName: string,

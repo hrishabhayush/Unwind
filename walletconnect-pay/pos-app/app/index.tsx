@@ -25,68 +25,68 @@ export default function HomeScreen() {
       showErrorToast("Merchant information not configured");
       return;
     }
-
     router.push("/amount");
   };
 
-  const handleActivityPress = () => {
-    router.push("/activity");
-  };
-
-  const handleSettingsPress = () => {
-    router.push("/settings");
-  };
+  const handleActivityPress = () => router.push("/activity");
+  const handleSettingsPress = () => router.push("/settings");
 
   return (
     <View style={styles.container}>
+      {/* Primary CTA */}
       <Button
         onPress={handleStartPayment}
-        style={[
-          styles.actionButton,
-          { backgroundColor: Theme["foreground-primary"] },
-        ]}
+        style={[styles.primaryButton, { backgroundColor: Theme["bg-accent-primary"] }]}
       >
-        <Image
-          source={assets?.[0]}
-          style={styles.actionButtonImage}
-          tintColor={Theme["icon-default"]}
-          cachePolicy="memory-disk"
-          priority="high"
-        />
-        <ThemedText fontSize={18}>New sale</ThemedText>
+        <View style={[styles.primaryIconWrap, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
+          <Image
+            source={assets?.[0]}
+            style={styles.primaryIcon}
+            tintColor="#FFFFFF"
+            cachePolicy="memory-disk"
+            priority="high"
+          />
+        </View>
+        <ThemedText fontSize={22} style={styles.primaryLabel} color="text-white">
+          New Sale
+        </ThemedText>
+        <ThemedText fontSize={13} color="text-white" style={styles.primarySub}>
+          Start a new payment
+        </ThemedText>
       </Button>
-      <Button
-        onPress={handleActivityPress}
-        style={[
-          styles.actionButton,
-          { backgroundColor: Theme["foreground-primary"] },
-        ]}
-      >
-        <Image
-          source={assets?.[1]}
-          style={styles.actionButtonImage}
-          tintColor={Theme["icon-default"]}
-          cachePolicy="memory-disk"
-          priority="high"
-        />
-        <ThemedText fontSize={18}>Activity</ThemedText>
-      </Button>
-      <Button
-        onPress={handleSettingsPress}
-        style={[
-          styles.actionButton,
-          { backgroundColor: Theme["foreground-primary"] },
-        ]}
-      >
-        <Image
-          source={assets?.[2]}
-          style={styles.actionButtonImage}
-          tintColor={Theme["icon-default"]}
-          cachePolicy="memory-disk"
-          priority="high"
-        />
-        <ThemedText fontSize={18}>Settings</ThemedText>
-      </Button>
+
+      {/* Secondary row */}
+      <View style={styles.secondaryRow}>
+        <Button
+          onPress={handleActivityPress}
+          style={[styles.secondaryButton, { backgroundColor: Theme["foreground-primary"], borderColor: Theme["border-primary"] }]}
+        >
+          <Image
+            source={assets?.[1]}
+            style={styles.secondaryIcon}
+            tintColor={Theme["icon-default"]}
+            cachePolicy="memory-disk"
+          />
+          <ThemedText fontSize={15} style={styles.secondaryLabel} color="text-primary">
+            Activity
+          </ThemedText>
+        </Button>
+
+        <Button
+          onPress={handleSettingsPress}
+          style={[styles.secondaryButton, { backgroundColor: Theme["foreground-primary"], borderColor: Theme["border-primary"] }]}
+        >
+          <Image
+            source={assets?.[2]}
+            style={styles.secondaryIcon}
+            tintColor={Theme["icon-default"]}
+            cachePolicy="memory-disk"
+          />
+          <ThemedText fontSize={15} style={styles.secondaryLabel} color="text-primary">
+            Settings
+          </ThemedText>
+        </Button>
+      </View>
     </View>
   );
 }
@@ -95,22 +95,56 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: Spacing["spacing-5"],
-    paddingTop: Spacing["spacing-2"],
+    paddingTop: Spacing["spacing-4"],
     paddingBottom: Platform.OS === "web" ? 0 : Spacing["spacing-7"],
-    justifyContent: "center",
-    alignItems: "center",
     gap: Spacing["spacing-3"],
   },
-  actionButton: {
+  // Primary button
+  primaryButton: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    width: "100%",
     borderRadius: BorderRadius["5"],
-    gap: Spacing["spacing-4"],
+    gap: Spacing["spacing-2"],
   },
-  actionButtonImage: {
-    width: 32,
-    height: 32,
+  primaryIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius["full"],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing["spacing-2"],
+  },
+  primaryIcon: {
+    width: 28,
+    height: 28,
+  },
+  primaryLabel: {
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  primarySub: {
+    opacity: 0.75,
+  },
+  // Secondary row
+  secondaryRow: {
+    flexDirection: "row",
+    gap: Spacing["spacing-3"],
+    height: 120,
+  },
+  secondaryButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: BorderRadius["4"],
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing["spacing-2"],
+  },
+  secondaryIcon: {
+    width: 24,
+    height: 24,
+  },
+  secondaryLabel: {
+    fontWeight: "500",
   },
 });

@@ -64,12 +64,12 @@ export default function AmountScreen() {
 
   return (
     <View style={styles.container}>
-      <View
-        style={[
-          styles.amountContainer,
-          { borderColor: Theme["border-primary"] },
-        ]}
-      >
+      <View style={styles.amountContainer}>
+        <ThemedText
+          style={[styles.currencyLabel, { color: Theme["text-secondary"] }]}
+        >
+          {currencyCode}
+        </ThemedText>
         <BigAmountInput
           value={watchAmount}
           currency={currency.symbol}
@@ -134,9 +134,7 @@ export default function AmountScreen() {
         ]}
       >
         <ThemedText
-          fontSize={16}
-          lineHeight={18}
-          style={{ color: Theme["text-invert"] }}
+          style={[styles.buttonText, { color: Theme["text-invert"] }]}
         >
           {isValid
             ? `Charge ${formatAmountWithSymbol(formatAmount(watchAmount), currency)}`
@@ -163,13 +161,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingTop: Spacing["spacing-4"],
     paddingHorizontal: Spacing["spacing-5"],
+    gap: Spacing["spacing-2"],
+  },
+  currencyLabel: {
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
   button: {
     width: "100%",
     marginTop: Spacing["spacing-6"],
-    paddingVertical: Spacing["spacing-4"],
+    paddingVertical: Spacing["spacing-5"],
     paddingHorizontal: Spacing["spacing-5"],
     alignItems: "center",
     borderRadius: BorderRadius["5"],
+  },
+  buttonText: {
+    fontSize: 17,
+    fontWeight: "600",
+    lineHeight: 22,
   },
 });

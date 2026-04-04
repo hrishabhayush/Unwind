@@ -39,7 +39,7 @@ export default function ActivityScreen() {
   } = useTransactions({
     filter: transactionFilter,
   });
-
+  console.log(transactions);
   // Show error toast when fetch fails
   useEffect(() => {
     if (isError && error) {
@@ -131,7 +131,7 @@ export default function ActivityScreen() {
         contentContainerStyle={[
           styles.listContent,
           (!transactions || transactions?.length === 0) &&
-            styles.emptyListContent,
+          styles.emptyListContent,
         ]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyComponent}

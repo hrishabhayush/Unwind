@@ -1,6 +1,8 @@
 import { BorderRadius, Spacing } from "@/constants/spacing";
 import { useTheme } from "@/hooks/use-theme-color";
 import { formatDateTime } from "@/utils/misc";
+import { formatFiatAmount } from "@/utils/currency";
+import { formatTokenAmount } from "@/utils/tokens";
 import { PaymentRecord } from "@/utils/types";
 import { memo, useEffect } from "react";
 import {
@@ -36,28 +38,16 @@ interface TransactionDetailModalProps {
   onClose: () => void;
 }
 
-/**
- * Truncate hash for display (e.g., "0x23...22d3")
- */
 function truncateHash(hash?: string): string {
   if (!hash) return "-";
   if (hash.length <= 12) return hash;
   return `${hash.slice(0, 4)}...${hash.slice(-4)}`;
 }
 
-/**
- * Get the token icon based on asset symbol
- * Returns the icon source or null if not USDC/USDT
- */
 function getTokenIcon(symbol?: string): number | null {
   if (!symbol) return null;
-
-  if (symbol === "USDC") {
-    return require("@/assets/images/tokens/usdc.png");
-  }
-  if (symbol === "USDT") {
-    return require("@/assets/images/tokens/usdt.png");
-  }
+  if (symbol === "USDC") return require("@/assets/images/tokens/usdc.png");
+  if (symbol === "USDT") return require("@/assets/images/tokens/usdt.png");
   return null;
 }
 
@@ -66,7 +56,9 @@ interface DetailRowProps {
   value?: string;
   children?: React.ReactNode;
   onPress?: () => void;
-  underline?: boolean;
+  copyable?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 
 function DetailRow({
@@ -74,7 +66,9 @@ function DetailRow({
   value,
   children,
   onPress,
-  underline,
+  copyable,
+  isFirst,
+  isLast,
 }: DetailRowProps) {
   const theme = useTheme();
 
@@ -82,30 +76,39 @@ function DetailRow({
     <View
       style={[
         styles.detailRow,
-        { backgroundColor: theme["foreground-primary"] },
+        isFirst && styles.detailRowFirst,
+        isLast && styles.detailRowLast,
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme["border-primary"] },
       ]}
     >
-      <ThemedText fontSize={16} color="text-secondary">
+      <ThemedText fontSize={14} color="text-secondary" style={styles.labelText}>
         {label}
       </ThemedText>
-      {children || (
-        <ThemedText
-          fontSize={16}
-          color="text-primary"
-          numberOfLines={1}
-          ellipsizeMode="middle"
-          style={[styles.valueText, underline && styles.underlineText]}
-        >
-          {value}
-        </ThemedText>
-      )}
+      <View style={styles.valueContainer}>
+        {children || (
+          <ThemedText
+            fontSize={15}
+            color={copyable ? "text-primary" : "text-primary"}
+            numberOfLines={1}
+            ellipsizeMode="middle"
+            style={styles.valueText}
+          >
+            {value}
+          </ThemedText>
+        )}
+        {copyable && (
+          <ThemedText
+            fontSize={13}
+            style={[styles.copyLabel, { color: theme["icon-accent-primary"] }]}
+          >
+            Copy
+          </ThemedText>
+        )}
+      </View>
     </View>
   );
 
-  if (onPress) {
-    return <Button onPress={onPress}>{content}</Button>;
-  }
-
+  if (onPress) return <Button onPress={onPress}>{content}</Button>;
   return content;
 }
 
@@ -122,15 +125,9 @@ function TransactionDetailModalBase({
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (visible) {
-      translateY.value = withTiming(0, {
-        duration: ANIMATION_DURATION,
-        easing: EASING,
-      });
+      translateY.value = withTiming(0, { duration: ANIMATION_DURATION, easing: EASING });
     } else {
-      translateY.value = withTiming(300, {
-        duration: ANIMATION_DURATION,
-        easing: EASING,
-      });
+      translateY.value = withTiming(300, { duration: ANIMATION_DURATION, easing: EASING });
     }
   }, [visible, translateY]);
 
@@ -152,6 +149,17 @@ function TransactionDetailModalBase({
     showSuccessToast("Transaction hash copied to clipboard");
   };
 
+  const hasCryptoRow = !!payment.tokenAmount;
+  const hasHashRow = !!payment.transaction?.hash;
+
+  // Total number of rows to compute isLast
+  const rowCount = 3 + (hasCryptoRow ? 1 : 0) + 1 + (hasHashRow ? 1 : 0);
+  let rowIndex = 0;
+
+  const tokenIcon = hasCryptoRow
+    ? getTokenIcon(payment.tokenAmount?.display.assetSymbol)
+    : null;
+
   return (
     <FramedModal visible={visible} onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -166,12 +174,28 @@ function TransactionDetailModalBase({
           <View
             style={[
               styles.containerInner,
-              {
-                paddingBottom: Math.max(insets.bottom, Spacing["spacing-6"]),
-              },
+              { paddingBottom: Math.max(insets.bottom, Spacing["spacing-6"]) },
             ]}
           >
+            {/* Drag handle */}
+            <View style={styles.dragHandleRow}>
+              <View
+                style={[
+                  styles.dragHandle,
+                  { backgroundColor: theme["border-secondary"] },
+                ]}
+              />
+            </View>
+
+            {/* Header */}
             <View style={styles.header}>
+              <ThemedText
+                fontSize={18}
+                color="text-primary"
+                style={styles.headerTitle}
+              >
+                Transaction Details
+              </ThemedText>
               <Button
                 onPress={onClose}
                 style={[
@@ -187,41 +211,75 @@ function TransactionDetailModalBase({
               </Button>
             </View>
 
-            <ScrollView
-              style={styles.content}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.details}>
+            {/* Hero amount block */}
+            <View style={styles.heroBlock}>
+              <ThemedText fontSize={32} color="text-primary" style={styles.heroAmount}>
+                {formatFiatAmount(payment.fiatAmount ? parseInt(payment.fiatAmount.value) : undefined, payment.fiatAmount?.unit)}
+              </ThemedText>
+              {hasCryptoRow && payment.tokenAmount && (
+                <View style={styles.heroSubRow}>
+                  <ThemedText fontSize={16} color="text-secondary">
+                    {`${formatTokenAmount(
+                      payment.tokenAmount.value,
+                      payment.tokenAmount.display.decimals
+                    )} ${payment.tokenAmount.display.assetSymbol}`}
+                  </ThemedText>
+                  {tokenIcon && (
+                    <Image style={styles.tokenIcon} source={tokenIcon} />
+                  )}
+                </View>
+              )}
+            </View>
+
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              {/* Detail list */}
+              <View
+                style={[
+                  styles.detailList,
+                  {
+                    backgroundColor: theme["foreground-primary"],
+                    borderColor: theme["border-primary"],
+                  },
+                ]}
+              >
                 <DetailRow
                   label="Date"
                   value={formatDateTime(payment.createdAt)}
+                  isFirst={rowIndex++ === 0}
+                  isLast={rowIndex === rowCount}
                 />
 
-                <DetailRow label="Status">
+                <DetailRow
+                  label="Status"
+                  isFirst={rowIndex++ === 0}
+                  isLast={rowIndex === rowCount}
+                >
                   <StatusBadge status={payment.status} />
                 </DetailRow>
 
                 <DetailRow
                   label="Amount"
-                  value={payment.fiatAmount?.display.formatted ?? "-"}
+                  value={formatFiatAmount(payment.fiatAmount ? parseInt(payment.fiatAmount.value) : undefined, payment.fiatAmount?.unit)}
+                  isFirst={rowIndex++ === 0}
+                  isLast={rowIndex === rowCount}
                 />
 
-                {payment.tokenAmount && (
-                  <DetailRow label="Crypto received">
+                {hasCryptoRow && payment.tokenAmount && (
+                  <DetailRow
+                    label="Crypto received"
+                    isFirst={rowIndex++ === 0}
+                    isLast={rowIndex === rowCount}
+                  >
                     <View style={styles.cryptoValue}>
-                      <ThemedText
-                        fontSize={16}
-                        lineHeight={18}
-                        color="text-primary"
-                      >
-                        {payment.tokenAmount.display.formatted}
+                      <ThemedText fontSize={15} color="text-primary">
+                        {`${formatTokenAmount(
+                          payment.tokenAmount.value,
+                          payment.tokenAmount.display.decimals
+                        )} ${payment.tokenAmount.display.assetSymbol}`}
                       </ThemedText>
-                      {(() => {
-                        const icon = getTokenIcon(payment.tokenAmount?.display.assetSymbol);
-                        return icon ? (
-                          <Image style={styles.tokenIcon} source={icon} />
-                        ) : null;
-                      })()}
+                      {tokenIcon && (
+                        <Image style={styles.tokenIcon} source={tokenIcon} />
+                      )}
                     </View>
                   </DetailRow>
                 )}
@@ -230,15 +288,19 @@ function TransactionDetailModalBase({
                   label="Payment ID"
                   value={payment.paymentId}
                   onPress={handleCopyPaymentId}
-                  underline
+                  copyable
+                  isFirst={rowIndex++ === 0}
+                  isLast={rowIndex === rowCount}
                 />
 
-                {payment.transaction?.hash && (
+                {hasHashRow && (
                   <DetailRow
                     label="Hash ID"
-                    value={truncateHash(payment.transaction.hash)}
+                    value={truncateHash(payment.transaction?.hash)}
                     onPress={handleCopyHash}
-                    underline
+                    copyable
+                    isFirst={rowIndex++ === 0}
+                    isLast={rowIndex === rowCount}
                   />
                 )}
               </View>
@@ -261,45 +323,41 @@ export const TransactionDetailModal = memo(TransactionDetailModalBase);
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     justifyContent: "flex-end",
   },
   container: {
     borderTopLeftRadius: BorderRadius["5"],
     borderTopRightRadius: BorderRadius["5"],
-    maxHeight: "80%",
+    maxHeight: "85%",
   },
   containerInner: {
-    paddingTop: Spacing["spacing-4"],
+    paddingTop: Spacing["spacing-3"],
     paddingBottom: Spacing["spacing-6"],
     paddingHorizontal: Spacing["spacing-5"],
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
+
+  // Drag handle
+  dragHandleRow: {
     alignItems: "center",
     marginBottom: Spacing["spacing-4"],
   },
-  content: {
-    flexGrow: 0,
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: BorderRadius["full"],
+    opacity: 0.5,
   },
-  details: {
-    gap: Spacing["spacing-3"],
-  },
-  detailRow: {
+
+  // Header
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: Spacing["spacing-6"],
-    borderRadius: BorderRadius["3"],
-    gap: Spacing["spacing-2"],
+    marginBottom: Spacing["spacing-6"],
   },
-  valueText: {
-    textAlign: "right",
-    flex: 1,
-  },
-  underlineText: {
-    textDecorationLine: "underline",
+  headerTitle: {
+    fontWeight: "600",
   },
   closeButton: {
     borderRadius: BorderRadius["3"],
@@ -312,6 +370,68 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
   },
+
+  // Hero amount
+  heroBlock: {
+    alignItems: "center",
+    paddingVertical: Spacing["spacing-6"],
+    marginBottom: Spacing["spacing-5"],
+  },
+  heroAmount: {
+    fontWeight: "700",
+    letterSpacing: -0.5,
+    marginBottom: Spacing["spacing-2"],
+  },
+  heroSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing["spacing-2"],
+  },
+
+  // Detail list
+  content: {
+    flexGrow: 0,
+  },
+  detailList: {
+    borderRadius: BorderRadius["3"],
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing["spacing-4"],
+    paddingHorizontal: Spacing["spacing-5"],
+    minHeight: 52,
+  },
+  detailRowFirst: {
+    // reserved for future top-specific overrides
+  },
+  detailRowLast: {
+    borderBottomWidth: 0,
+  },
+  labelText: {
+    flex: 0,
+    marginRight: Spacing["spacing-4"],
+  },
+  valueContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: Spacing["spacing-2"],
+  },
+  valueText: {
+    textAlign: "right",
+    flexShrink: 1,
+  },
+  copyLabel: {
+    fontWeight: "500",
+    flexShrink: 0,
+  },
+
+  // Crypto inline display (used inside detail row children)
   cryptoValue: {
     flexDirection: "row",
     alignItems: "center",

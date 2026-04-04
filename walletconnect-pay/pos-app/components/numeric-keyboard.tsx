@@ -34,10 +34,7 @@ function NumericKeyboardBase({ onKeyPress, style }: NumericKeyboardProps) {
             <Button
               key={key}
               onPress={() => handlePress(key)}
-              style={[
-                styles.key,
-                { backgroundColor: Theme["foreground-primary"] },
-              ]}
+              style={styles.key}
             >
               {key === "erase" ? (
                 <Image
@@ -74,23 +71,25 @@ export const NumericKeyboard = memo(NumericKeyboardBase);
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    gap: Spacing["spacing-3"],
+    gap: Spacing["spacing-2"],
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-around",
-    gap: Spacing["spacing-3"],
+    gap: Spacing["spacing-2"],
   },
   key: {
     flex: 1,
-    height: 64,
+    height: 68,
     justifyContent: "center",
     alignItems: "center",
     borderRadius: BorderRadius["4"],
+    backgroundColor: "transparent",
   },
   keyText: {
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 26,
+    fontWeight: "500",
+    lineHeight: 32,
   },
   backspace: {
     width: 22,

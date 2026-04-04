@@ -32,7 +32,26 @@ export function formatShortDate(dateString?: string): string {
 }
 
 /**
- * Format date with time (e.g., "Oct 14, 25 - 14:23")
+ * Format date with time for transaction cards (e.g., "Oct 14 · 14:23")
+ */
+export function formatCardDateTime(dateString?: string): string {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const datePart = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const timePart = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `${datePart} · ${timePart}`;
+}
+
+/**
+ * Format date with full year and time (e.g., "Oct 14, 2025 · 14:23")
  */
 export function formatDateTime(dateString?: string): string {
   if (!dateString) return "-";
@@ -41,14 +60,14 @@ export function formatDateTime(dateString?: string): string {
   const datePart = date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "2-digit",
+    year: "numeric",
   });
   const timePart = date.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
   });
 
-  return `${datePart} - ${timePart}`;
+  return `${datePart} · ${timePart}`;
 }
 
 /**

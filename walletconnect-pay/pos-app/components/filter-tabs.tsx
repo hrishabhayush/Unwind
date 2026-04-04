@@ -2,7 +2,7 @@ import { BorderRadius, Spacing } from "@/constants/spacing";
 import { useTheme } from "@/hooks/use-theme-color";
 import { TransactionFilterType } from "@/utils/types";
 import { memo, useCallback, useRef } from "react";
-import { LayoutChangeEvent, ScrollView, StyleSheet, View } from "react-native";
+import { LayoutChangeEvent, ScrollView, StyleSheet } from "react-native";
 import { Button } from "./button";
 import { ThemedText } from "./themed-text";
 
@@ -14,14 +14,13 @@ interface FilterTabsProps {
 interface FilterOption {
   key: TransactionFilterType;
   label: string;
-  dotThemeKey?: "icon-error" | "foreground-tertiary" | "icon-success";
 }
 
 const FILTER_OPTIONS: FilterOption[] = [
   { key: "all", label: "All" },
-  { key: "failed", label: "Failed", dotThemeKey: "icon-error" },
-  { key: "pending", label: "Pending", dotThemeKey: "foreground-tertiary" },
-  { key: "completed", label: "Completed", dotThemeKey: "icon-success" },
+  { key: "failed", label: "Failed" },
+  { key: "pending", label: "Pending" },
+  { key: "completed", label: "Completed" },
 ];
 
 function FilterTabsBase({ selectedFilter, onFilterChange }: FilterTabsProps) {
@@ -70,26 +69,14 @@ function FilterTabsBase({ selectedFilter, onFilterChange }: FilterTabsProps) {
             style={[
               styles.tab,
               {
-                borderColor: isSelected
-                  ? theme["border-accent-primary"]
-                  : theme["foreground-primary"],
-                backgroundColor: isSelected
-                  ? theme["foreground-accent-primary-10"]
-                  : theme["foreground-primary"],
+                backgroundColor: isSelected ? "#FFFFFF" : "transparent",
               },
             ]}
           >
-            {option.dotThemeKey && (
-              <View
-                style={[
-                  styles.dot,
-                  { backgroundColor: theme[option.dotThemeKey] },
-                ]}
-              />
-            )}
             <ThemedText
-              fontSize={14}
-              color={isSelected ? "text-primary" : "text-secondary"}
+              fontSize={13}
+              fontWeight={isSelected ? "600" : "400"}
+              color={isSelected ? "text-invert" : "text-secondary"}
             >
               {option.label}
             </ThemedText>
@@ -104,22 +91,15 @@ export const FilterTabs = memo(FilterTabsBase);
 
 const styles = StyleSheet.create({
   scrollContent: {
-    gap: Spacing["spacing-2"],
+    gap: Spacing["spacing-1"],
     paddingVertical: Spacing["spacing-1"],
     paddingHorizontal: Spacing["spacing-5"],
   },
   tab: {
-    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing["spacing-4"],
-    paddingHorizontal: Spacing["spacing-5"],
-    borderRadius: BorderRadius["4"],
-    gap: Spacing["spacing-2"],
-  },
-  dot: {
-    width: 10,
-    height: 10,
+    paddingVertical: Spacing["spacing-2"],
+    paddingHorizontal: Spacing["spacing-4"],
     borderRadius: BorderRadius["full"],
   },
 });

@@ -19,7 +19,8 @@ import { useUrlCredentials } from "@/hooks/use-url-credentials";
 import {
   getHeaderBackgroundColor,
   getHeaderTintColor,
-  shouldCenterHeaderTitle,
+  getScreenTitle,
+  isLogoScreen,
 } from "@/utils/navigation";
 import * as Sentry from "@sentry/react-native";
 
@@ -33,7 +34,7 @@ import { showInfoToast } from "@/utils/toast";
 import { toastConfig } from "@/utils/toasts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useEffect } from "react";
-import { Platform, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import {
   initialWindowMetrics,
   SafeAreaProvider,
@@ -132,28 +133,30 @@ export default Sentry.wrap(function RootLayout() {
           >
             <Stack
               screenOptions={({ route }) => {
-                const centerTitle = shouldCenterHeaderTitle(route.name);
+                const logoScreen = isLogoScreen(route.name);
                 const headerTintColor = getHeaderTintColor(route.name);
-                const headerBackgroundColor = getHeaderBackgroundColor(
-                  route.name,
-                );
+                const headerBackgroundColor = getHeaderBackgroundColor(route.name);
+                const tintColor = Theme[headerTintColor];
+                const bgColor = Theme[headerBackgroundColor];
 
                 return {
-                  headerTitle: centerTitle ? HeaderImage : "",
-                  headerRight: !centerTitle
-                    ? () => (
-                        <HeaderImage
-                          padding
-                          tintColor={Theme[headerTintColor]}
-                        />
-                      )
-                    : undefined,
+                  headerTitle: logoScreen ? HeaderImage : getScreenTitle(route.name),
+                  headerRight: undefined,
                   headerShadowVisible: false,
-                  headerTintColor: Theme[headerTintColor],
+                  headerTintColor: tintColor,
                   headerBackButtonDisplayMode: "minimal",
                   headerTitleAlign: "center",
+                  headerTitleStyle: logoScreen
+                    ? undefined
+                    : {
+                        fontSize: 17,
+                        fontWeight: "600",
+                        color: tintColor,
+                      },
                   headerStyle: {
-                    backgroundColor: Theme[headerBackgroundColor],
+                    backgroundColor: bgColor,
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: Theme["border-primary"],
                     ...(Platform.OS === "web" && {
                       paddingHorizontal: Spacing["spacing-3"],
                     }),
