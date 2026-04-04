@@ -1,6 +1,8 @@
 # Unwind
 
-Non-custodial payment infrastructure for crypto commerce. Merchants accept stablecoin payments through a POS app, funds are held in an on-chain escrow contract with built-in refund and dispute resolution, and settlement happens trustlessly.
+On-chain refund infrastructure for crypto payments.
+
+Merchants accept stablecoin payments through a POS app powered by WalletConnect Pay. Funds are escrowed in the RefundProtocol smart contract with a configurable lockup period. During that window, refunds can be issued by the merchant or forced by an arbiter. After lockup, the merchant withdraws. If they don't, the payer can reclaim after a grace period.
 
 ## How it works
 
@@ -79,7 +81,7 @@ sequenceDiagram
 
 ## Refund Protocol
 
-Deployed on **Base** (mainnet + Sepolia testnet). Written in Solidity ^0.8.24.
+Deployed on **Base** (mainnet + Sepolia testnet) and **Arc testnet**. Written in Solidity ^0.8.24.
 
 ### Contracts
 
@@ -131,17 +133,7 @@ BASE_SEPOLIA_RPC_URL=
 
 ## WalletConnect Pay POS
 
-A cross-platform point-of-sale app for merchants to accept crypto payments. Built with React Native (Expo 55).
-
-### Features
-
-- QR code payment flow via WalletConnect Pay merchant API
-- Real-time payment status polling
-- Transaction history with filtering and pagination
-- Bluetooth thermal receipt printing
-- Biometric authentication
-- Light/dark theme with branded variants (Solflare, Phantom, Binance, etc.)
-- Runs on iOS, Android, and Web
+A cross-platform point-of-sale app for merchants to accept crypto payments. Built with React Native (Expo 55). See the [WalletConnect Pay docs](https://www.notion.so/walletconnect/WalletConnect-Pay-EthGlobal-Cannes-3333a661771e80cc91d9cb78356dbdcd) for API reference and reach out to the team for whitelisting as a merchant to start taking payments.
 
 ### Setup
 
@@ -194,8 +186,10 @@ node server.mjs
 | Layer | Tech |
 |-------|------|
 | Smart contracts | Solidity, Foundry, OpenZeppelin |
-| Chain | Base (USDC) |
-| POS app | React Native, Expo 55, TypeScript |
+| Chain | Base mainnet, Base Sepolia, Arc testnet |
+| POS app | React Native, Expo, TypeScript |
 | State | Zustand, TanStack Query |
+| UI | React Native |
 | Payments | WalletConnect Pay merchant API |
+| Testing | Forge, Jest |
 | Monorepo | pnpm workspaces |
