@@ -1,6 +1,5 @@
 import { Button } from "@/components/button";
 import { Card } from "@/components/card";
-import { CloseButton } from "@/components/close-button";
 import { PinModal } from "@/components/pin-modal";
 import { RadioList, RadioOption } from "@/components/radio-list";
 import { SettingsBottomSheet } from "@/components/settings-bottom-sheet";
@@ -17,7 +16,6 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 import { ThemeMode } from "@/utils/types";
 import { getBiometricLabel } from "@/utils/biometrics";
 import { CURRENCIES, CurrencyCode, getCurrency } from "@/utils/currency";
-import { resetNavigation } from "@/utils/navigation";
 import {
   connectPrinter,
   printReceipt,
@@ -26,7 +24,6 @@ import {
 import { showErrorToast } from "@/utils/toast";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Platform, StyleSheet, TextInput, View } from "react-native";
@@ -242,37 +239,48 @@ export default function SettingsScreen() {
     handleBiometricAuthFailure,
   ]);
 
+  const SectionHeader = ({ title }: { title: string }) => (
+    <ThemedText
+      fontSize={11}
+      color="text-secondary"
+      style={styles.sectionHeader}
+    >
+      {title}
+    </ThemedText>
+  );
+
   return (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <SectionHeader title="APPEARANCE" />
         <SettingsItem
           title="Theme"
           value={THEME_LABELS[themeMode]}
           onPress={() => setActiveSheet("theme")}
           disabled={isCustomVariant}
         />
-
         <SettingsItem
           title="Wallet theme"
           value={currentVariant?.name ?? "None"}
           onPress={() => setActiveSheet("walletTheme")}
         />
 
+        <SectionHeader title="PAYMENT" />
         <SettingsItem
           title="Currency"
           value={`${currentCurrency.name} (${currentCurrency.symbol})`}
           onPress={() => setActiveSheet("currency")}
         />
 
+        <SectionHeader title="MERCHANT" />
         <SettingsItem
           title="Merchant ID"
           value={merchantIdInput || undefined}
           onPress={() => setActiveSheet("merchantId")}
         />
-
         <SettingsItem
           title="Customer API KEY"
           value="**********"
@@ -281,27 +289,32 @@ export default function SettingsScreen() {
 
         {/* Biometric toggle - only show if PIN is set and biometrics available */}
         {shouldShowBiometricOption && biometricStatus && (
-          <Card style={styles.biometricCard}>
-            <View style={styles.biometricRow}>
-              <View style={styles.biometricLabel}>
-                <ThemedText fontSize={16} lineHeight={18}>
-                  {getBiometricLabel(biometricStatus.biometricType)}
-                </ThemedText>
-                <ThemedText fontSize={12} lineHeight={14} color="text-tertiary">
-                  Use instead of PIN
-                </ThemedText>
+          <>
+            <SectionHeader title="SECURITY" />
+            <Card style={styles.biometricCard}>
+              <View style={styles.biometricRow}>
+                <View style={styles.biometricLabel}>
+                  <ThemedText fontSize={16} lineHeight={18}>
+                    {getBiometricLabel(biometricStatus.biometricType)}
+                  </ThemedText>
+                  <ThemedText fontSize={12} lineHeight={14} color="text-tertiary">
+                    Use instead of PIN
+                  </ThemedText>
+                </View>
+                <Switch
+                  style={styles.switch}
+                  value={biometricEnabled}
+                  onValueChange={handleBiometricToggle}
+                />
               </View>
-              <Switch
-                style={styles.switch}
-                value={biometricEnabled}
-                onValueChange={handleBiometricToggle}
-              />
-            </View>
-          </Card>
+            </Card>
+          </>
         )}
 
+        <SectionHeader title="DEVICE" />
         <SettingsItem title="Test printer" onPress={handleTestPrinterPress} />
 
+        <SectionHeader title="DEVELOPER" />
         <SettingsItem title="View Logs" onPress={() => router.push("/logs")} />
 
         <ThemedText
@@ -313,19 +326,6 @@ export default function SettingsScreen() {
           Version {appVersion} ({buildVersion})
         </ThemedText>
       </ScrollView>
-
-      <LinearGradient
-        colors={[
-          theme["bg-primary"] + "00",
-          theme["bg-primary"] + "40",
-          theme["bg-primary"] + "CC",
-          theme["bg-primary"],
-        ]}
-        locations={[0, 0.3, 0.5, 1]}
-        style={styles.gradient}
-        pointerEvents="none"
-      />
-      <CloseButton style={styles.closeButton} onPress={resetNavigation} />
 
       {/* Theme Bottom Sheet */}
       <SettingsBottomSheet
@@ -497,19 +497,14 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingTop: Spacing["spacing-5"],
-    paddingBottom: Spacing["extra-spacing-2"],
+    paddingBottom: Spacing["spacing-10"],
     gap: Spacing["spacing-2"],
   },
-  closeButton: {
-    position: "absolute",
-    alignSelf: "center",
-  },
-  gradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 200,
+  sectionHeader: {
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    paddingTop: Spacing["spacing-5"],
+    paddingBottom: Spacing["spacing-1"],
   },
   versionText: {
     alignSelf: "flex-end",

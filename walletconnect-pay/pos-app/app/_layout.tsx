@@ -39,6 +39,8 @@ import {
   initialWindowMetrics,
   SafeAreaProvider,
 } from "react-native-safe-area-context";
+import { HeaderBackButton } from "@react-navigation/elements";
+import { router } from "expo-router";
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -144,15 +146,30 @@ export default Sentry.wrap(function RootLayout() {
                   headerRight: undefined,
                   headerShadowVisible: false,
                   headerTintColor: tintColor,
-                  headerBackButtonDisplayMode: "minimal",
                   headerTitleAlign: "center",
+                  headerLeft: logoScreen
+                    ? undefined
+                    : ({ canGoBack }) => (
+                      <HeaderBackButton
+                        onPress={() => {
+                          if (canGoBack) router.back();
+                          else router.replace("/");
+                        }}
+                        tintColor={tintColor}
+                        style={
+                          Platform.OS === "web"
+                            ? { marginLeft: Spacing["spacing-1"] }
+                            : undefined
+                        }
+                      />
+                    ),
                   headerTitleStyle: logoScreen
                     ? undefined
                     : {
-                        fontSize: 17,
-                        fontWeight: "600",
-                        color: tintColor,
-                      },
+                      fontSize: 17,
+                      fontWeight: "600",
+                      color: tintColor,
+                    },
                   headerStyle: {
                     backgroundColor: bgColor,
                     borderBottomWidth: StyleSheet.hairlineWidth,
