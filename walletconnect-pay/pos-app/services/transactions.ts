@@ -1,9 +1,5 @@
-import { useSettingsStore } from "@/store/useSettingsStore";
 import { TransactionsResponse } from "@/utils/types";
-// TODO: Once Merchants API unifies auth with Payment API, switch to getApiHeaders()
-import { apiClient } from "./client";
-
-const MERCHANT_PORTAL_API_KEY = process.env.EXPO_PUBLIC_MERCHANT_PORTAL_API_KEY;
+import { apiClient, getApiHeaders } from "./client";
 
 export interface GetTransactionsOptions {
   status?: string | string[];
@@ -15,21 +11,14 @@ export interface GetTransactionsOptions {
 
 /**
  * Fetch merchant transactions from the API (native version)
+ * Uses the same unified auth headers as payment endpoints.
  * @param options - Optional query parameters for filtering and pagination
  * @returns TransactionsResponse with list of payments and stats
  */
 export async function getTransactions(
   options: GetTransactionsOptions = {},
 ): Promise<TransactionsResponse> {
-  const merchantId = useSettingsStore.getState().merchantId;
-
-  if (!merchantId) {
-    throw new Error("Merchant ID is not configured");
-  }
-
-  if (!MERCHANT_PORTAL_API_KEY) {
-    throw new Error("Merchant Portal API key is not configured");
-  }
+  const headers = await getApiHeaders();
 
   // Build query string from options
   const params = new URLSearchParams();
@@ -59,12 +48,7 @@ export async function getTransactions(
   }
 
   const queryString = params.toString();
-  const endpoint = `/merchants/payments${queryString ? `?${queryString}` : ""}`;
+  const endpoint = `/v1/merchants/payments${queryString ? `?${queryString}` : ""}`;
 
-  return apiClient.get<TransactionsResponse>(endpoint, {
-    headers: {
-      "Api-Key": MERCHANT_PORTAL_API_KEY,
-      "Merchant-Id": merchantId,
-    },
-  });
+  return apiClient.get<TransactionsResponse>(endpoint, { headers });
 }
