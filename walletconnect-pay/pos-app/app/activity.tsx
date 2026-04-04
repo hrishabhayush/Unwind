@@ -4,10 +4,10 @@ import { TransactionCard } from "@/components/transaction-card";
 import { TransactionDetailModal } from "@/components/transaction-detail-modal";
 import { Spacing } from "@/constants/spacing";
 import { useTheme } from "@/hooks/use-theme-color";
-import { useTransactions } from "@/services/hooks";
+import { useTransactions, useRefundPayment } from "@/services/hooks";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { PaymentRecord, TransactionFilterType } from "@/utils/types";
-import { showErrorToast } from "@/utils/toast";
+import { showErrorToast, showSuccessToast } from "@/utils/toast";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,6 +25,8 @@ export default function ActivityScreen() {
     null,
   );
   const [modalVisible, setModalVisible] = useState(false);
+
+  const refundMutation = useRefundPayment();
 
   const {
     transactions,
@@ -63,6 +65,22 @@ export default function ActivityScreen() {
     setModalVisible(false);
     setSelectedPayment(null);
   }, []);
+
+  const handleRefund = useCallback(
+    (paymentId: string) => {
+      refundMutation.mutate(paymentId, {
+        onSuccess: () => {
+          showSuccessToast("Refund successful");
+          setModalVisible(false);
+          setSelectedPayment(null);
+        },
+        onError: (err) => {
+          showErrorToast(err.message || "Refund failed");
+        },
+      });
+    },
+    [refundMutation],
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: PaymentRecord }) => (
@@ -155,6 +173,8 @@ export default function ActivityScreen() {
         visible={modalVisible}
         payment={selectedPayment}
         onClose={handleCloseModal}
+        onRefund={handleRefund}
+        isRefunding={refundMutation.isPending}
       />
     </>
   );

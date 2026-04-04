@@ -43,3 +43,29 @@ export async function cancelPayment(paymentId: string): Promise<void> {
     { headers },
   );
 }
+
+export async function refundPayment(
+  paymentId: string,
+): Promise<{ txHash: string; payer: string; amount: string }> {
+  if (!paymentId?.trim()) {
+    throw new Error("paymentId is required");
+  }
+  const merchantApiUrl = (
+    process.env.EXPO_PUBLIC_SERVER_URL ?? ""
+  ).replace(/\/+$/, "");
+  const res = await fetch(
+    `${merchantApiUrl}/api/payments/${encodeURIComponent(paymentId)}/refund`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { error?: string }).error ?? `Refund failed: ${res.status}`,
+    );
+  }
+  return res.json();
+}

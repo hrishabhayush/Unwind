@@ -11,6 +11,7 @@ import {
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { cancelPayment, getPaymentStatus, startPayment } from "./payment";
+import { refundPayment } from "./payment-core";
 import { getTransactions, GetTransactionsOptions } from "./transactions";
 
 const KNOWN_STATUSES: string[] = [
@@ -61,6 +62,20 @@ export function useStartPayment() {
 export function useCancelPayment() {
   return useMutation<void, Error, string>({
     mutationFn: cancelPayment,
+  });
+}
+
+/**
+ * Hook to refund a payment via the demo-server (on-chain refundByRecipient)
+ * @returns Mutation hook for refunding payments
+ */
+export function useRefundPayment() {
+  return useMutation<
+    { txHash: string; payer: string; amount: string },
+    Error,
+    string
+  >({
+    mutationFn: refundPayment,
   });
 }
 

@@ -3,6 +3,10 @@ import express from "express";
 import QRCode from "qrcode";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { createPublicClient, createWalletClient, http, keccak256, toBytes } from "viem";
+import { base } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+import { REFUND_PROTOCOL_ABI } from "./constants/refundProtocolAbi.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -11,6 +15,16 @@ const API_KEY = process.env.WCP_API_KEY;
 const MERCHANT_ID = process.env.WCP_MERCHANT_ID;
 
 const app = express();
+
+// CORS so the RN/web app can call this server
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json());
 app.use(express.static(join(__dirname, "public")));
 
@@ -78,6 +92,68 @@ app.post("/api/payments", async (req, res) => {
       referenceId,
       qrDataUrl,
     });
+  } catch (e) {
+    return res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+
+app.post("/api/payments/:paymentId/refund", async (req, res) => {
+  const { paymentId } = req.params;
+  const executorKey = process.env.EXECUTOR_PRIVATE_KEY;
+  const contractAddress = process.env.REFUND_PROTOCOL_ADDRESS;
+
+  if (!executorKey || !contractAddress) {
+    return res.status(500).json({
+      error: "EXECUTOR_PRIVATE_KEY and REFUND_PROTOCOL_ADDRESS must be set in .env",
+    });
+  }
+
+  try {
+    // 1. viem setup
+    const publicClient = createPublicClient({ chain: base, transport: http() });
+    const account = privateKeyToAccount(executorKey);
+    const walletClient = createWalletClient({ chain: base, transport: http(), account });
+
+    // 2. Compute wcPaymentIdHash = keccak256(bytes(paymentId))
+    const wcPaymentIdHash = keccak256(toBytes(paymentId));
+
+    // 3. Read getInfo → log payer + amount
+    const [payer, amount] = await publicClient.readContract({
+      address: contractAddress,
+      abi: REFUND_PROTOCOL_ABI,
+      functionName: "getInfo",
+      args: [wcPaymentIdHash],
+    });
+    console.log(`Refund info — payer: ${payer}, amount: ${amount.toString()} (USDC base units)`);
+
+    // 4. Resolve uint256 paymentID from wcPaymentIdHash
+    const paymentID = await publicClient.readContract({
+      address: contractAddress,
+      abi: REFUND_PROTOCOL_ABI,
+      functionName: "paymentIdForWcHash",
+      args: [wcPaymentIdHash],
+    });
+
+    // 5. Execute on-chain refund
+    const txHash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: REFUND_PROTOCOL_ABI,
+      functionName: "refundByRecipient",
+      args: [paymentID],
+    });
+
+    // 6. All on-chain steps succeeded — cancel the payment on WC Pay
+    // 400 = already cancelled / not cancellable, safe to ignore
+    const cancelRes = await fetch(
+      `${API_BASE}/v1/payments/${encodeURIComponent(paymentId)}/cancel`,
+      { method: "POST", headers: wcpHeaders() },
+    );
+    if (!cancelRes.ok && cancelRes.status !== 400) {
+      console.warn(`WC Pay cancel returned ${cancelRes.status} — refund is already on-chain`);
+    }
+
+    return res.json({ success: true, txHash, payer, amount: amount.toString() });
   } catch (e) {
     return res.status(500).json({ error: String(e.message || e) });
   }

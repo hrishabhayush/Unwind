@@ -36,6 +36,8 @@ interface TransactionDetailModalProps {
   visible: boolean;
   payment: PaymentRecord | null;
   onClose: () => void;
+  onRefund?: (paymentId: string) => void;
+  isRefunding?: boolean;
 }
 
 function truncateHash(hash?: string): string {
@@ -116,11 +118,17 @@ function TransactionDetailModalBase({
   visible,
   payment,
   onClose,
+  onRefund,
+  isRefunding = false,
 }: TransactionDetailModalProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   const translateY = useSharedValue(Platform.OS === "web" ? 300 : 0);
+  const refundFill = useSharedValue(0);
+  const refundFillStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(223, 74, 52, ${refundFill.value * 0.12})`,
+  }));
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -305,6 +313,38 @@ function TransactionDetailModalBase({
                 )}
               </View>
             </ScrollView>
+
+            {payment.status === "succeeded" && onRefund && (
+              <Pressable
+                onPress={() => onRefund(payment.paymentId)}
+                onPressIn={() => {
+                  refundFill.value = withTiming(1, { duration: 80 });
+                }}
+                onPressOut={() => {
+                  refundFill.value = withTiming(0, { duration: 150 });
+                }}
+                disabled={isRefunding}
+                style={isRefunding && styles.refundButtonDisabled}
+              >
+                <Animated.View
+                  style={[
+                    styles.refundButton,
+                    { borderColor: theme["icon-error"] },
+                    refundFillStyle,
+                  ]}
+                >
+                  <ThemedText
+                    fontSize={15}
+                    style={[
+                      styles.refundButtonText,
+                      { color: theme["icon-error"] },
+                    ]}
+                  >
+                    {isRefunding ? "Processing refund…" : "Refund"}
+                  </ThemedText>
+                </Animated.View>
+              </Pressable>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -429,6 +469,22 @@ const styles = StyleSheet.create({
   copyLabel: {
     fontWeight: "500",
     flexShrink: 0,
+  },
+
+  // Refund button
+  refundButton: {
+    marginTop: Spacing["spacing-5"],
+    borderRadius: BorderRadius["3"],
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["spacing-4"],
+  },
+  refundButtonDisabled: {
+    opacity: 0.5,
+  },
+  refundButtonText: {
+    fontWeight: "600",
   },
 
   // Crypto inline display (used inside detail row children)
