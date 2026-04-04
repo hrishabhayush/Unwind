@@ -12,3 +12,6 @@ docs/
 
 # Dotenv file
 .env
+
+# Generated for Basescan manual verification (forge verify-contract --show-standard-json-input)
+basescan-standard-input.json
