@@ -1,0 +1,15 @@
+{
+  "name": "unwind",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter settle-app dev",
+    "build": "pnpm --filter settle-app build",
+    "lint": "pnpm --filter settle-app lint",
+    "format": "pnpm --filter settle-app format",
+    "typecheck": "pnpm --filter settle-app typecheck",
+    "test:contracts": "cd refund-protocol && forge test"
+  },
+  "packageManager": "pnpm@8.10.4+sha1.ad75b0e775742692244c8e5e17c358390abf2025"
+}
