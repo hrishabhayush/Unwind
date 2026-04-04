@@ -28,6 +28,8 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
         bool refunded;
         uint256 refundExpiryTimestamp;
         address payer;
+        /// @dev keccak256(bytes(wcPaymentId)) off-chain; zero if not linked to WalletConnect Pay
+        bytes32 wcPaymentIdHash;
     }
 
     uint256 public constant MAX_LOCKUP_SECONDS = 60 * 60 * 24 * 180; // 180 days
@@ -41,6 +43,8 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
     address public arbiter;
     mapping(address => uint256) public lockupSeconds;
     mapping(uint256 => Payment) public payments;
+    /// @dev WC Pay id hash -> protocol paymentID + 1 (0 means unset; real id is value - 1)
+    mapping(bytes32 => uint256) public wcHashToPaymentId;
     mapping(address => uint256) public balances;
     mapping(address => uint256) public debts;
     mapping(bytes32 => bool) public withdrawalHashes;
@@ -51,7 +55,8 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
         uint256 amount,
         uint256 releaseTimestamp,
         address indexed refundTo,
-        uint256 refundExpiryTimestamp
+        uint256 refundExpiryTimestamp,
+        bytes32 wcPaymentIdHash
     );
     event Refund(uint256 indexed paymentID, address indexed refundTo, uint256 amount);
     event RefundToUpdated(uint256 indexed paymentID, address indexed oldRefundTo, address indexed newRefundTo);
@@ -74,6 +79,10 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
     error MismatchedEarlyWithdrawalArrays();
     error RefundWindowExpired(uint256 paymentID);
     error ReclaimNotYetAvailable(uint256 paymentID);
+    error WcPaymentIdAlreadyUsed();
+    error WcPaymentHashUnknown();
+    error PayerIsZeroAddress();
+    error RecipientIsZeroAddress();
 
     constructor(address _arbiter, address _usdc, string memory eip712Name, string memory eip712version)
         EIP712(eip712Name, eip712version)
@@ -103,22 +112,141 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
      * @param to - recipient of the payment
      * @param amount - amount of USDC to send
      * @param refundTo - address to refund to if triggered
+     * @param wcPaymentIdHash - keccak256(bytes(wcPaymentId)) from WalletConnect Pay, or bytes32(0) if none
      */
-    function pay(address to, uint256 amount, address refundTo) external nonReentrant {
+    function pay(address to, uint256 amount, address refundTo, bytes32 wcPaymentIdHash) external nonReentrant {
         if (refundTo == address(0)) {
             revert RefundToIsZeroAddress();
+        }
+        if (wcPaymentIdHash != bytes32(0)) {
+            if (wcHashToPaymentId[wcPaymentIdHash] != 0) {
+                revert WcPaymentIdAlreadyUsed();
+            }
         }
 
         uint256 recipientlockupSeconds = lockupSeconds[to];
         uint256 releaseTimestamp = block.timestamp + recipientlockupSeconds;
 
+        uint256 paymentID = nonce;
         fiatToken.transferFrom(msg.sender, address(this), amount);
-        payments[nonce] = Payment(to, amount, releaseTimestamp, refundTo, 0, false, releaseTimestamp, msg.sender);
+        payments[paymentID] =
+            Payment(to, amount, releaseTimestamp, refundTo, 0, false, releaseTimestamp, msg.sender, wcPaymentIdHash);
         balances[to] += amount;
 
-        emit PaymentCreated(nonce, to, amount, releaseTimestamp, refundTo, releaseTimestamp);
+        if (wcPaymentIdHash != bytes32(0)) {
+            wcHashToPaymentId[wcPaymentIdHash] = paymentID + 1;
+        }
+
+        emit PaymentCreated(paymentID, to, amount, releaseTimestamp, refundTo, releaseTimestamp, wcPaymentIdHash);
         nonce += 1;
     }
+
+    /**
+     * @notice Records escrow for a settlement that did not call pay() on-chain (e.g. WalletConnect Pay API).
+     * Caller must be the merchant address that both holds USDC and receives escrow accounting (same as `to`).
+     * If USDC sits in another contract (vault), use payFromContract instead.
+     * @param payer The customer address stored as payer (reclaim, refunds to refundTo semantics match pay()).
+     * @param amount USDC to escrow (must match what was settled off-chain for your integration).
+     * @param refundTo Customer refund destination (same role as pay()).
+     * @param wcPaymentIdHash keccak256(bytes(wcPaymentId)) to link off-chain id, or bytes32(0).
+     */
+    function payAsRecipient(address payer, uint256 amount, address refundTo, bytes32 wcPaymentIdHash)
+        external
+        nonReentrant
+    {
+        _validateEscrowParams(msg.sender, payer, refundTo, wcPaymentIdHash);
+        fiatToken.transferFrom(msg.sender, address(this), amount);
+        _commitEscrowPayment(msg.sender, payer, amount, refundTo, wcPaymentIdHash);
+    }
+
+    /**
+     * @notice Escrow USDC held by a smart contract (vault) while crediting a separate merchant `recipient`.
+     * Caller is the token source: it must approve this contract, then call with the merchant as `recipient`.
+     * @param recipient Merchant address (`Payment.to`, withdraw/refund recipient).
+     * @param payer Customer address stored as payer (same semantics as pay()).
+     */
+    function payFromContract(
+        address recipient,
+        address payer,
+        uint256 amount,
+        address refundTo,
+        bytes32 wcPaymentIdHash
+    ) external nonReentrant {
+        _validateEscrowParams(recipient, payer, refundTo, wcPaymentIdHash);
+        fiatToken.transferFrom(msg.sender, address(this), amount);
+        _commitEscrowPayment(recipient, payer, amount, refundTo, wcPaymentIdHash);
+    }
+
+    /**
+     * @notice Arbiter-only bookkeeping when USDC is already held by this contract (e.g. pre-funded pool).
+     * Does not pull tokens; ensure contract balance covers obligations before calling.
+     * @param payer Customer address recorded on the Payment (same as pay()).
+     * @param to Merchant recipient.
+     */
+    function registerPayment(
+        address payer,
+        address to,
+        uint256 amount,
+        address refundTo,
+        bytes32 wcPaymentIdHash
+    ) external onlyArbiter nonReentrant {
+        _validateEscrowParams(to, payer, refundTo, wcPaymentIdHash);
+        _commitEscrowPayment(to, payer, amount, refundTo, wcPaymentIdHash);
+    }
+
+    function _validateEscrowParams(address to, address payer, address refundTo, bytes32 wcPaymentIdHash) private view {
+        if (payer == address(0)) {
+            revert PayerIsZeroAddress();
+        }
+        if (refundTo == address(0)) {
+            revert RefundToIsZeroAddress();
+        }
+        if (to == address(0)) {
+            revert RecipientIsZeroAddress();
+        }
+        if (wcPaymentIdHash != bytes32(0)) {
+            if (wcHashToPaymentId[wcPaymentIdHash] != 0) {
+                revert WcPaymentIdAlreadyUsed();
+            }
+        }
+    }
+
+    /// @dev State write for off-chain-linked escrows; validate with _validateEscrowParams first (especially before transferFrom).
+    function _commitEscrowPayment(
+        address to,
+        address payer,
+        uint256 amount,
+        address refundTo,
+        bytes32 wcPaymentIdHash
+    ) private {
+        uint256 recipientlockupSeconds = lockupSeconds[to];
+        uint256 releaseTimestamp = block.timestamp + recipientlockupSeconds;
+
+        uint256 paymentID = nonce;
+        payments[paymentID] =
+            Payment(to, amount, releaseTimestamp, refundTo, 0, false, releaseTimestamp, payer, wcPaymentIdHash);
+        balances[to] += amount;
+
+        if (wcPaymentIdHash != bytes32(0)) {
+            wcHashToPaymentId[wcPaymentIdHash] = paymentID + 1;
+        }
+
+        emit PaymentCreated(paymentID, to, amount, releaseTimestamp, refundTo, releaseTimestamp, wcPaymentIdHash);
+        nonce += 1;
+    }
+
+    /**
+     * @notice Resolve WalletConnect Pay id hash to on-chain payment id (if linked).
+     * @return paymentID The escrow payment id; reverts if hash was never used.
+     */
+    function paymentIdForWcHash(bytes32 wcPaymentIdHash) external view returns (uint256 paymentID) {
+        uint256 stored = wcHashToPaymentId[wcPaymentIdHash];
+        if (stored == 0) {
+            revert WcPaymentHashUnknown();
+        }
+        return stored - 1;
+    }
+
 
     /**
      * A function that returns a payment to the refundTo address to cover a refund or a chargeback.
@@ -379,6 +507,22 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
         fiatToken.transfer(msg.sender, reclaimAmount);
 
         emit Reclaim(paymentID, msg.sender, reclaimAmount);
+    }
+
+    /**
+     * @notice Read payer and amount for a WalletConnect Pay id hash (off-chain: keccak256(bytes(wcPaymentId))).
+     * @return payer Customer address on the Payment (from pay(), payAsRecipient(), payFromContract(), or registerPayment())
+     * @return amount Escrow amount (USDC base units)
+     */
+    function getInfo(bytes32 wcPaymentIdHash) external view returns (address payer, uint256 amount) {
+        uint256 stored = wcHashToPaymentId[wcPaymentIdHash];
+        if (stored == 0) {
+            revert WcPaymentHashUnknown();
+        }
+        uint256 paymentID = stored - 1;
+        Payment memory p = payments[paymentID];
+        payer = p.payer;
+        amount = p.amount;
     }
 
     /**
