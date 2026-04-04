@@ -18,5 +18,5 @@ export const config = {
     vaultAddress: required("ARC_MERCHANT_VAULT_ADDRESS"),
     usdcAddress: required("ARC_USDC_ADDRESS"),
   },
-  pollIntervalMs: Number(process.env.POLL_INTERVAL_MS) || 10_000,
+  pollIntervalMs: Number(process.env.POLL_INTERVAL_MS) || 2_000,
 };
