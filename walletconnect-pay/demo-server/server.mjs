@@ -7,6 +7,9 @@ import { createPublicClient, createWalletClient, http, keccak256, toBytes } from
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { REFUND_PROTOCOL_ABI } from "./constants/refundProtocolAbi.mjs";
+import { RefundProtocol } from "./contracts/RefundProtocol.mjs";
+import { MerchantVault } from "./contracts/MerchantVault.mjs";
+import { getRpcTransport } from "./utils/rpc.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,6 +18,9 @@ const API_KEY = process.env.WCP_API_KEY;
 const MERCHANT_ID = process.env.WCP_MERCHANT_ID;
 
 const app = express();
+
+/** paymentId → { txHash: string, escrowedAt: number } */
+const escrowCache = new Map();
 
 // CORS so the RN/web app can call this server
 app.use((req, res, next) => {
@@ -98,6 +104,63 @@ app.post("/api/payments", async (req, res) => {
 });
 
 
+app.post("/api/payments/:paymentId/escrow", async (req, res) => {
+  const { paymentId } = req.params;
+  const { recipient, payer, amount, refundTo } = req.body ?? {};
+
+  const executorKey = process.env.EXECUTOR_PRIVATE_KEY;
+  const refundProtocolAddress = process.env.REFUND_PROTOCOL_ADDRESS;
+  const merchantVaultAddress = process.env.MERCHANT_VAULT;
+
+  if (!executorKey || !refundProtocolAddress || !merchantVaultAddress) {
+    return res.status(500).json({
+      error: "EXECUTOR_PRIVATE_KEY, REFUND_PROTOCOL_ADDRESS and MERCHANT_VAULT must be set in .env",
+    });
+  }
+  if (!recipient || !payer || !amount || !refundTo) {
+    return res.status(400).json({ error: "recipient, payer, amount, and refundTo are required" });
+  }
+
+  const cached = escrowCache.get(paymentId);
+  if (cached) {
+    return res.status(409).json({ error: "already escrowed", txHash: cached.txHash });
+  }
+
+  try {
+    const publicClient = createPublicClient({ chain: base, transport: getRpcTransport(base) });
+    const account = privateKeyToAccount(executorKey);
+    const walletClient = createWalletClient({ chain: base, transport: getRpcTransport(base), account });
+
+    const wcPaymentIdHash = keccak256(toBytes(paymentId));
+
+    const refundProtocol = new RefundProtocol({ publicClient, address: refundProtocolAddress });
+    const merchantVault = new MerchantVault({ walletClient, address: merchantVaultAddress });
+
+    const existing = await refundProtocol.getInfo(wcPaymentIdHash);
+    if (existing !== null) {
+      return res.status(409).json({ error: "already escrowed" });
+    }
+
+    const txHash = await merchantVault.escrowToRefundProtocol({
+      recipient,
+      payer,
+      amount,
+      refundTo,
+      wcPaymentIdHash,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      return res.status(500).json({ error: "transaction reverted", txHash });
+    }
+
+    escrowCache.set(paymentId, { txHash, escrowedAt: Date.now() });
+    return res.json({ txHash });
+  } catch (e) {
+    return res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.post("/api/payments/:paymentId/refund", async (req, res) => {
   const { paymentId } = req.params;
   const executorKey = process.env.EXECUTOR_PRIVATE_KEY;
@@ -111,29 +174,21 @@ app.post("/api/payments/:paymentId/refund", async (req, res) => {
 
   try {
     // 1. viem setup
-    const publicClient = createPublicClient({ chain: base, transport: http() });
+    const publicClient = createPublicClient({ chain: base, transport: getRpcTransport(base) });
     const account = privateKeyToAccount(executorKey);
-    const walletClient = createWalletClient({ chain: base, transport: http(), account });
+    const walletClient = createWalletClient({ chain: base, transport: getRpcTransport(base), account });
 
     // 2. Compute wcPaymentIdHash = keccak256(bytes(paymentId))
     const wcPaymentIdHash = keccak256(toBytes(paymentId));
 
+    const refundProtocol = new RefundProtocol({ publicClient, address: contractAddress });
+
     // 3. Read getInfo → log payer + amount
-    const [payer, amount] = await publicClient.readContract({
-      address: contractAddress,
-      abi: REFUND_PROTOCOL_ABI,
-      functionName: "getInfo",
-      args: [wcPaymentIdHash],
-    });
+    const { payer, amount } = await refundProtocol.getInfo(wcPaymentIdHash);
     console.log(`Refund info — payer: ${payer}, amount: ${amount.toString()} (USDC base units)`);
 
     // 4. Resolve uint256 paymentID from wcPaymentIdHash
-    const paymentID = await publicClient.readContract({
-      address: contractAddress,
-      abi: REFUND_PROTOCOL_ABI,
-      functionName: "paymentIdForWcHash",
-      args: [wcPaymentIdHash],
-    });
+    const paymentID = await refundProtocol.paymentIdForWcHash(wcPaymentIdHash);
 
     // 5. Execute on-chain refund
     const txHash = await walletClient.writeContract({

@@ -44,6 +44,37 @@ export async function cancelPayment(paymentId: string): Promise<void> {
   );
 }
 
+export async function escrowPayment(
+  paymentId: string,
+  params: { address: string; amount: string },
+): Promise<{ txHash: string } | null> {
+  if (!paymentId?.trim()) throw new Error("paymentId is required");
+  const merchantApiUrl = (
+    process.env.EXPO_PUBLIC_SERVER_URL ?? ""
+  ).replace(/\/+$/, "");
+  const res = await fetch(
+    `${merchantApiUrl}/api/payments/${encodeURIComponent(paymentId)}/escrow`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: params.address,
+        payer: params.address,
+        amount: params.amount,
+        refundTo: params.address,
+      }),
+    },
+  );
+  if (res.status === 409) return null; // already escrowed — not an error
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { error?: string }).error ?? `Escrow failed: ${res.status}`,
+    );
+  }
+  return res.json();
+}
+
 export async function refundPayment(
   paymentId: string,
 ): Promise<{ txHash: string; payer: string; amount: string }> {

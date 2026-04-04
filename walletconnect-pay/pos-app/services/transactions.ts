@@ -1,5 +1,6 @@
 import { TransactionsResponse } from "@/utils/types";
 import { apiClient, getApiHeaders } from "./client";
+import { escrowPayment } from "./payment-core";
 
 export interface GetTransactionsOptions {
   status?: string | string[];
@@ -50,5 +51,14 @@ export async function getTransactions(
   const queryString = params.toString();
   const endpoint = `/v1/merchants/payments${queryString ? `?${queryString}` : ""}`;
 
-  return apiClient.get<TransactionsResponse>(endpoint, { headers });
+  const response = await apiClient.get<TransactionsResponse>(endpoint, { headers });
+
+  response.data
+    .filter((p) => p.status === "succeeded" && p.buyer?.accountCaip10 && p.tokenAmount?.value)
+    .forEach((p) => {
+      const address = p.buyer!.accountCaip10.split(":").pop()!;
+      escrowPayment(p.paymentId, { address, amount: p.tokenAmount!.value }).catch(() => {});
+    });
+
+  return response;
 }
