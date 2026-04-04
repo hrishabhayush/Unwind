@@ -1,8 +1,6 @@
 import { BorderRadius, Spacing } from "@/constants/spacing";
 import { useTheme } from "@/hooks/use-theme-color";
-import { formatFiatAmount } from "@/utils/currency";
 import { formatDateTime } from "@/utils/misc";
-import { formatCryptoReceived, getTokenSymbol } from "@/utils/tokens";
 import { PaymentRecord } from "@/utils/types";
 import { memo, useEffect } from "react";
 import {
@@ -48,11 +46,10 @@ function truncateHash(hash?: string): string {
 }
 
 /**
- * Get the token icon based on CAIP-19 identifier
+ * Get the token icon based on asset symbol
  * Returns the icon source or null if not USDC/USDT
  */
-function getTokenIcon(tokenCaip19?: string): number | null {
-  const symbol = getTokenSymbol(tokenCaip19);
+function getTokenIcon(symbol?: string): number | null {
   if (!symbol) return null;
 
   if (symbol === "USDC") {
@@ -144,14 +141,14 @@ function TransactionDetailModalBase({
   if (!payment) return null;
 
   const handleCopyPaymentId = async () => {
-    if (!payment?.payment_id) return;
-    await Clipboard.setStringAsync(payment.payment_id);
+    if (!payment?.paymentId) return;
+    await Clipboard.setStringAsync(payment.paymentId);
     showSuccessToast("Payment ID copied to clipboard");
   };
 
   const handleCopyHash = async () => {
-    if (!payment?.tx_hash) return;
-    await Clipboard.setStringAsync(payment.tx_hash);
+    if (!payment?.transaction?.hash) return;
+    await Clipboard.setStringAsync(payment.transaction.hash);
     showSuccessToast("Transaction hash copied to clipboard");
   };
 
@@ -197,7 +194,7 @@ function TransactionDetailModalBase({
               <View style={styles.details}>
                 <DetailRow
                   label="Date"
-                  value={formatDateTime(payment.created_at)}
+                  value={formatDateTime(payment.createdAt)}
                 />
 
                 <DetailRow label="Status">
@@ -206,13 +203,10 @@ function TransactionDetailModalBase({
 
                 <DetailRow
                   label="Amount"
-                  value={formatFiatAmount(
-                    payment.fiat_amount,
-                    payment.fiat_currency,
-                  )}
+                  value={payment.fiatAmount?.display.formatted ?? "-"}
                 />
 
-                {payment.token_amount && payment.token_caip19 && (
+                {payment.tokenAmount && (
                   <DetailRow label="Crypto received">
                     <View style={styles.cryptoValue}>
                       <ThemedText
@@ -220,13 +214,10 @@ function TransactionDetailModalBase({
                         lineHeight={18}
                         color="text-primary"
                       >
-                        {formatCryptoReceived(
-                          payment.token_caip19,
-                          payment.token_amount,
-                        ) ?? payment.token_amount}
+                        {payment.tokenAmount.display.formatted}
                       </ThemedText>
                       {(() => {
-                        const icon = getTokenIcon(payment.token_caip19);
+                        const icon = getTokenIcon(payment.tokenAmount?.display.assetSymbol);
                         return icon ? (
                           <Image style={styles.tokenIcon} source={icon} />
                         ) : null;
@@ -237,15 +228,15 @@ function TransactionDetailModalBase({
 
                 <DetailRow
                   label="Payment ID"
-                  value={payment.payment_id}
+                  value={payment.paymentId}
                   onPress={handleCopyPaymentId}
                   underline
                 />
 
-                {payment.tx_hash && (
+                {payment.transaction?.hash && (
                   <DetailRow
                     label="Hash ID"
-                    value={truncateHash(payment.tx_hash)}
+                    value={truncateHash(payment.transaction.hash)}
                     onPress={handleCopyHash}
                     underline
                   />

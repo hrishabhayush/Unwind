@@ -1,5 +1,6 @@
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { TransactionsResponse } from "@/utils/types";
+import { apiClient } from "./client";
 
 export interface GetTransactionsOptions {
   status?: string | string[];
@@ -10,9 +11,8 @@ export interface GetTransactionsOptions {
 }
 
 /**
- * Fetch merchant transactions via server-side proxy (web version)
- * API key is handled server-side, only merchantId is sent from client
- * TODO: Once Merchants API unifies auth with Payment API, pass credentials from client
+ * Fetch merchant transactions from the API (web version)
+ * Uses only CORS-safe auth headers (no Sdk-* headers which the API rejects in preflight).
  * @param options - Optional query parameters for filtering and pagination
  * @returns TransactionsResponse with list of payments and stats
  */
@@ -20,12 +20,16 @@ export async function getTransactions(
   options: GetTransactionsOptions = {},
 ): Promise<TransactionsResponse> {
   const merchantId = useSettingsStore.getState().merchantId;
+  const customerApiKey = await useSettingsStore.getState().getCustomerApiKey();
 
-  if (!merchantId || merchantId.trim().length === 0) {
-    throw new Error("Merchant ID is not configured");
-  }
+  if (!merchantId) throw new Error("Merchant ID is not configured");
+  if (!customerApiKey) throw new Error("Customer API key is not configured");
 
-  // Build query string from options
+  const headers: Record<string, string> = {
+    "Api-Key": customerApiKey,
+    "Merchant-Id": merchantId,
+  };
+
   const params = new URLSearchParams();
 
   if (options.status) {
@@ -37,11 +41,11 @@ export async function getTransactions(
   }
 
   if (options.sortBy) {
-    params.append("sort_by", options.sortBy);
+    params.append("sortBy", options.sortBy);
   }
 
   if (options.sortDir) {
-    params.append("sort_dir", options.sortDir);
+    params.append("sortDir", options.sortDir);
   }
 
   if (options.limit) {
@@ -53,22 +57,7 @@ export async function getTransactions(
   }
 
   const queryString = params.toString();
-  const url = `/api/transactions${queryString ? `?${queryString}` : ""}`;
+  const endpoint = `/v1/merchants/payments${queryString ? `?${queryString}` : ""}`;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "x-merchant-id": merchantId,
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.message || `Failed to fetch transactions: ${response.status}`,
-    );
-  }
-
-  return response.json();
+  return apiClient.get<TransactionsResponse>(endpoint, { headers });
 }
