@@ -74,9 +74,12 @@ sequenceDiagram
 │   ├── script/
 │   └── foundry.toml
 │
-└── walletconnect-pay/     # POS application
-    ├── pos-app/           # React Native (Expo) — iOS, Android, Web
-    └── demo-server/       # Express.js dev server for local testing
+├── walletconnect-pay/     # POS application
+│   ├── pos-app/           # React Native (Expo) — iOS, Android, Web
+│   └── demo-server/       # Express.js dev server for local testing
+│
+└── relayer/               # Arc testnet relayer (mirrors Base payments to Arc)
+    └── src/
 ```
 
 ## Refund Protocol
@@ -180,6 +183,26 @@ cp .env.example .env
 node server.mjs
 # Runs on http://localhost:3847
 ```
+
+## Arc Testnet Relayer
+
+WalletConnect Pay settles on Base mainnet. To demonstrate the RefundProtocol on Arc testnet, the relayer polls for completed WC Pay payments and mirrors each escrow call on Arc.
+
+```
+WC Pay payment succeeds (Base) → Relayer picks it up → escrowToRefundProtocol() on Arc testnet
+```
+
+### Setup
+
+```bash
+cd relayer
+npm install
+cp .env.example .env
+# Fill in WCP merchant creds + Arc testnet contract addresses + relayer private key
+npm start
+```
+
+The relayer needs a funded wallet on Arc testnet (for gas) and the MerchantVault must hold testnet USDC.
 
 ## Stack
 
