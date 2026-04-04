@@ -10,5 +10,6 @@ evm_version = 'cancun'
 [rpc_endpoints]
 base = "${BASE_MAINNET_RPC_URL}"
 base-sepolia = "${BASE_SEPOLIA_RPC_URL}"
+arc-testnet = "${ARC_TESTNET_RPC_URL}"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
