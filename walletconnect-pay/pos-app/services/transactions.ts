@@ -43,11 +43,11 @@ export async function getTransactions(
   }
 
   if (options.sortBy) {
-    params.append("sort_by", options.sortBy);
+    params.append("sortBy", options.sortBy);
   }
 
   if (options.sortDir) {
-    params.append("sort_dir", options.sortDir);
+    params.append("sortDir", options.sortDir);
   }
 
   if (options.limit) {
@@ -59,11 +59,12 @@ export async function getTransactions(
   }
 
   const queryString = params.toString();
-  const endpoint = `/merchants/${merchantId}/payments${queryString ? `?${queryString}` : ""}`;
+  const endpoint = `/merchants/payments${queryString ? `?${queryString}` : ""}`;
 
   return apiClient.get<TransactionsResponse>(endpoint, {
     headers: {
-      "x-api-key": MERCHANT_PORTAL_API_KEY,
+      "Api-Key": MERCHANT_PORTAL_API_KEY,
+      "Merchant-Id": merchantId,
     },
   });
 }

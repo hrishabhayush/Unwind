@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
-// TODO: Once Merchants API unifies auth with Payment API, forward client credentials instead
 const MERCHANT_PORTAL_API_KEY = process.env.EXPO_PUBLIC_MERCHANT_PORTAL_API_KEY;
 
 /**
@@ -40,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Build query string from request query params
     const params = new URLSearchParams();
-    const { status, sort_by, sort_dir, limit, cursor } = req.query;
+    const { status, sortBy, sortDir, limit, cursor, startTs, endTs } = req.query;
 
     // Handle status (can be array for multiple status filters)
     if (status) {
@@ -50,11 +49,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         params.append("status", status);
       }
     }
-    if (sort_by && typeof sort_by === "string") {
-      params.append("sort_by", sort_by);
+    if (sortBy && typeof sortBy === "string") {
+      params.append("sortBy", sortBy);
     }
-    if (sort_dir && typeof sort_dir === "string") {
-      params.append("sort_dir", sort_dir);
+    if (sortDir && typeof sortDir === "string") {
+      params.append("sortDir", sortDir);
     }
     if (limit && typeof limit === "string") {
       params.append("limit", limit);
@@ -62,16 +61,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (cursor && typeof cursor === "string") {
       params.append("cursor", cursor);
     }
+    if (startTs && typeof startTs === "string") {
+      params.append("startTs", startTs);
+    }
+    if (endTs && typeof endTs === "string") {
+      params.append("endTs", endTs);
+    }
 
     const queryString = params.toString();
     const normalizedBaseUrl = API_BASE_URL.replace(/\/+$/, "");
-    const endpoint = `/merchants/${encodeURIComponent(merchantId)}/payments${queryString ? `?${queryString}` : ""}`;
+    const endpoint = `/merchants/payments${queryString ? `?${queryString}` : ""}`;
 
     const response = await fetch(`${normalizedBaseUrl}${endpoint}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": MERCHANT_PORTAL_API_KEY,
+        "Api-Key": MERCHANT_PORTAL_API_KEY,
+        "Merchant-Id": merchantId,
       },
     });
 

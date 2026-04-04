@@ -37,11 +37,11 @@ export async function getTransactions(
   }
 
   if (options.sortBy) {
-    params.append("sort_by", options.sortBy);
+    params.append("sortBy", options.sortBy);
   }
 
   if (options.sortDir) {
-    params.append("sort_dir", options.sortDir);
+    params.append("sortDir", options.sortDir);
   }
 
   if (options.limit) {

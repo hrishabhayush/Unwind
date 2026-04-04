@@ -42,28 +42,60 @@ export type TransactionStatus = PaymentStatus;
 
 export type TransactionFilterType = "all" | "failed" | "pending" | "completed";
 
+export interface AmountDisplay {
+  formatted: string;
+  assetSymbol: string;
+}
+
+export interface TokenAmountDisplay extends AmountDisplay {
+  decimals: number;
+  iconUrl?: string;
+  networkName?: string;
+}
+
+export interface FiatAmount {
+  value: string;
+  unit: string;
+  display: AmountDisplay;
+}
+
+export interface TokenAmount {
+  value: string;
+  unit: string;
+  display: TokenAmountDisplay;
+}
+
+export interface BuyerInfo {
+  accountCaip10: string;
+  accountProviderName: string;
+  accountProviderIcon?: string;
+}
+
+export interface TransactionInfo {
+  networkId: string;
+  hash: string;
+  nonce: number;
+}
+
+export interface SettlementInfo {
+  status: string;
+  txHash?: string;
+}
+
 export interface PaymentRecord {
-  payment_id: string;
-  reference_id: string;
+  paymentId: string;
+  referenceId: string;
   status: TransactionStatus;
-  merchant_id: string;
-  is_terminal: boolean;
-  wallet_name: string;
-  version: string;
-  tx_hash?: string;
-  fiat_amount?: number;
-  fiat_currency?: string;
-  token_amount?: string;
-  token_caip19?: string;
-  chain_id?: string;
-  created_at?: string;
-  confirmed_at?: string;
-  broadcasted_at?: string;
-  processing_at?: string;
-  finalized_at?: string;
-  last_updated_at?: string;
-  buyer_caip10?: string;
-  nonce?: number;
+  merchantId: string;
+  isTerminal: boolean;
+  fiatAmount?: FiatAmount;
+  tokenAmount?: TokenAmount;
+  buyer?: BuyerInfo;
+  transaction?: TransactionInfo;
+  settlement?: SettlementInfo;
+  createdAt?: string;
+  lastUpdatedAt?: string;
+  settledAt?: string;
 }
 
 export interface TransactionStats {
@@ -78,5 +110,5 @@ export interface TransactionStats {
 export interface TransactionsResponse {
   data: PaymentRecord[];
   stats?: TransactionStats;
-  next_cursor?: string | null;
+  nextCursor?: string | null;
 }

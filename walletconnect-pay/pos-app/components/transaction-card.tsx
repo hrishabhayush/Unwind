@@ -1,6 +1,5 @@
 import { BorderRadius, Spacing } from "@/constants/spacing";
 import { useTheme } from "@/hooks/use-theme-color";
-import { formatFiatAmount } from "@/utils/currency";
 import { formatShortDate } from "@/utils/misc";
 import { PaymentRecord } from "@/utils/types";
 import { memo } from "react";
@@ -33,7 +32,7 @@ function TransactionCardBase({
     >
       <View style={styles.leftContent}>
         <ThemedText fontSize={16} lineHeight={20} color="text-primary">
-          {formatFiatAmount(payment.fiat_amount, payment.fiat_currency)}
+          {payment.fiatAmount?.display.formatted ?? "-"}
         </ThemedText>
         <ThemedText
           fontSize={14}
@@ -41,7 +40,7 @@ function TransactionCardBase({
           color="text-secondary"
           style={styles.date}
         >
-          {formatShortDate(payment.created_at)}
+          {formatShortDate(payment.createdAt)}
         </ThemedText>
       </View>
       <StatusBadge status={payment.status} />

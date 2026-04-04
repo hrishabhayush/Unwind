@@ -76,7 +76,7 @@ export default function ActivityScreen() {
   );
 
   const keyExtractor = useCallback(
-    (item: PaymentRecord) => item.payment_id,
+    (item: PaymentRecord) => item.paymentId,
     [],
   );
 
