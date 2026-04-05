@@ -6,22 +6,22 @@ export const Colors = {
     "foreground-primary": "#F3F3F3",
     "foreground-secondary": "#E9E9E9",
     "foreground-tertiary": "#D0D0D0",
-    "foreground-accent-primary-10": "#0988F01A", // 10% opacity
-    "foreground-accent-primary-40": "#0988F040", // 40% opacity
-    "foreground-accent-primary-60": "#0988F060", // 60% opacity
+    "foreground-accent-primary-10": "#fffac81a", // 10% opacity
+    "foreground-accent-primary-40": "#fffac866", // 40% opacity
+    "foreground-accent-primary-60": "#fffac899", // 60% opacity
 
     // Icon colors
     "icon-default": "#9A9A9A",
     "icon-invert": "#202020",
     "icon-success": "#30A46B",
-    "icon-accent-primary": "#0988F0",
+    "icon-accent-primary": "#fffac8",
     "icon-error": "#DF4A34",
 
     // Background colors
     "bg-primary": "#FFFFFF",
     "bg-invert": "#202020",
-    "bg-accent-primary": "#0988F0",
-    "bg-payment-success": "#0988F0",
+    "bg-accent-primary": "#fffac8",
+    "bg-payment-success": "#fffac8",
 
     // Text colors
     "text-primary": "#202020",
@@ -29,35 +29,35 @@ export const Colors = {
     "text-tertiary": "#6C6C6C",
     "text-invert": "#FFFFFF",
     "text-white": "#FFFFFF",
-    "text-payment-success": "#FFFFFF",
+    "text-payment-success": "#202020",
 
     // Border colors
     "border-primary": "#E9E9E9",
     "border-secondary": "#D0D0D0",
     "border-payment-success": "#E9E9E9",
-    "border-accent-primary": "#0988F0",
+    "border-accent-primary": "#fffac8",
   },
   dark: {
     // Foreground colors
     "foreground-primary": "#252525",
     "foreground-secondary": "#2A2A2A",
     "foreground-tertiary": "#363636",
-    "foreground-accent-primary-10": "#0988F01A", // 10% opacity
-    "foreground-accent-primary-40": "#0988F040", // 40% opacity
-    "foreground-accent-primary-60": "#0988F060", // 60% opacity
+    "foreground-accent-primary-10": "#fffac81a", // 10% opacity
+    "foreground-accent-primary-40": "#fffac866", // 40% opacity
+    "foreground-accent-primary-60": "#fffac899", // 60% opacity
 
     // Icon colors
     "icon-default": "#9A9A9A",
     "icon-invert": "#FFFFFF",
     "icon-success": "#30A46B",
-    "icon-accent-primary": "#0988F0",
+    "icon-accent-primary": "#fffac8",
     "icon-error": "#DF4A34",
 
     // Background colors
     "bg-primary": "#202020",
     "bg-invert": "#FFFFFF",
-    "bg-accent-primary": "#0988F0",
-    "bg-payment-success": "#0988F0",
+    "bg-accent-primary": "#fffac8",
+    "bg-payment-success": "#fffac8",
 
     // Text colors
     "text-primary": "#FFFFFF",
@@ -65,13 +65,13 @@ export const Colors = {
     "text-tertiary": "#BBBBBB",
     "text-invert": "#202020",
     "text-white": "#FFFFFF",
-    "text-payment-success": "#FFFFFF",
+    "text-payment-success": "#202020",
 
     // Border colors
     "border-primary": "#363636",
     "border-secondary": "#4F4F4F",
     "border-payment-success": "#E9E9E9",
-    "border-accent-primary": "#0988F0",
+    "border-accent-primary": "#fffac8",
   },
 };
 

@@ -38,19 +38,19 @@ export default function HomeScreen() {
         onPress={handleStartPayment}
         style={[styles.primaryButton, { backgroundColor: Theme["bg-accent-primary"] }]}
       >
-        <View style={[styles.primaryIconWrap, { backgroundColor: "rgba(255,255,255,0.15)" }]}>
+        <View style={[styles.primaryIconWrap, { backgroundColor: "rgba(0,0,0,0.1)" }]}>
           <Image
             source={assets?.[0]}
             style={styles.primaryIcon}
-            tintColor="#FFFFFF"
+            tintColor="#202020"
             cachePolicy="memory-disk"
             priority="high"
           />
         </View>
-        <ThemedText fontSize={22} style={styles.primaryLabel} color="text-white">
+        <ThemedText fontSize={22} style={styles.primaryLabel} color="text-invert">
           New Sale
         </ThemedText>
-        <ThemedText fontSize={13} color="text-white" style={styles.primarySub}>
+        <ThemedText fontSize={13} color="text-invert" style={styles.primarySub}>
           Start a new payment
         </ThemedText>
       </Button>

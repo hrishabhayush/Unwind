@@ -22,7 +22,8 @@ type VariantColorOverrides = Partial<typeof Colors.light>;
 
 interface Variant {
   name: string;
-  brandLogo: ReturnType<typeof require>; // require() asset
+  brandLogo: ReturnType<typeof require>; // require() asset — used in light mode or when no dark variant
+  brandLogoDark?: ReturnType<typeof require>; // optional dark-mode logo (no tinting applied when set)
   brandLogoWidth?: number;
   printerLogo: string; // base64 string
   defaultTheme?: "light" | "dark";
@@ -35,8 +36,9 @@ interface Variant {
 export const Variants: Record<VariantName, Variant> = {
   default: {
     name: "None",
-    brandLogo: require("@/assets/images/brand.png"),
-    brandLogoWidth: 60,
+    brandLogo: require("@/assets/app_icons/logo-dark.png"),
+    brandLogoDark: require("@/assets/app_icons/logo-light.png"),
+    brandLogoWidth: 32,
     printerLogo: DEFAULT_LOGO_BASE64,
     colors: {
       light: {},

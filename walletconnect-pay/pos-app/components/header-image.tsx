@@ -1,7 +1,7 @@
-import { Spacing } from "@/constants/spacing";
 import { Variants } from "@/constants/variants";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { Image } from "expo-image";
+import { StyleSheet, Text, View } from "react-native";
 
 interface HeaderImageProps {
   tintColor?: string;
@@ -10,21 +10,39 @@ interface HeaderImageProps {
 
 export default function HeaderImage({ tintColor, padding }: HeaderImageProps) {
   const variant = useSettingsStore((state) => state.variant);
-  const brandLogo = Variants[variant].brandLogo as string;
+  const { brandLogo, brandLogoDark, brandLogoWidth } = Variants[variant];
+  const resolvedTint = brandLogoDark ? undefined : tintColor;
+
   return (
-    <Image
-      source={brandLogo}
-      cachePolicy="memory-disk"
-      priority="high"
-      contentFit="contain"
-      tintColor={tintColor}
-      style={{
-        height: 18,
-        width: Variants[variant].brandLogoWidth ?? 185,
-        marginTop: Spacing["spacing-1"],
-        tintColor: tintColor,
-        marginHorizontal: padding ? Spacing["spacing-2"] : 0,
-      }}
-    />
+    <View style={[styles.row, padding && styles.padding]}>
+      <Image
+        source={brandLogo}
+        cachePolicy="memory-disk"
+        priority="high"
+        contentFit="contain"
+        tintColor={resolvedTint}
+        style={{ height: 32, width: brandLogoWidth ?? 185 }}
+      />
+      <Text style={[styles.payText, tintColor ? { color: tintColor } : undefined]}>
+        Pay
+      </Text>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+  padding: {
+    marginHorizontal: 8,
+  },
+  payText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#202020",
+  },
+});

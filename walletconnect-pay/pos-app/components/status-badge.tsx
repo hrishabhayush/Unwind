@@ -18,19 +18,19 @@ type ChipStyle = {
 
 const STATUS_CHIP_STYLES: Record<DisplayStatus, ChipStyle> = {
   completed: {
-    backgroundColor: "rgba(48, 164, 107, 0.15)",
+    backgroundColor: "#30A46B",
     borderColor: "rgba(48, 164, 107, 0.3)",
-    textColor: "#30A46B",
+    textColor: "#ffffff",
   },
   failed: {
-    backgroundColor: "rgba(223, 74, 52, 0.15)",
+    backgroundColor: "#DF4A34",
     borderColor: "rgba(223, 74, 52, 0.3)",
-    textColor: "#DF4A34",
+    textColor: "#ffffff",
   },
   pending: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "#9A9A9A",
     borderColor: "rgba(255, 255, 255, 0.12)",
-    textColor: "#9A9A9A",
+    textColor: "#ffffff",
   },
 };
 
