@@ -62,12 +62,15 @@ export async function getTransactions(
 
   const response = await apiClient.get<TransactionsResponse>(endpoint, { headers });
 
-  response.data
-    .filter((p) => p.status === "succeeded" && p.buyer?.accountCaip10 && p.tokenAmount?.value)
-    .forEach((p) => {
+  const succeeded = response.data.filter(
+    (p) => p.status === "succeeded" && p.buyer?.accountCaip10 && p.tokenAmount?.value,
+  );
+  (async () => {
+    for (const p of succeeded) {
       const address = p.buyer!.accountCaip10.split(":").pop()!;
-      escrowPayment(p.paymentId, { address, amount: p.tokenAmount!.value }).catch(() => {});
-    });
+      await escrowPayment(p.paymentId, { address, amount: p.tokenAmount!.value }).catch(() => {});
+    }
+  })();
 
   return response;
 }
