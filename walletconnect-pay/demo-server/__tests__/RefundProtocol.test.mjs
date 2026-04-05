@@ -59,4 +59,35 @@ describe("RefundProtocol", () => {
       );
     });
   });
+
+  describe("refundByRecipient", () => {
+    it("simulates then writes and returns txHash", async () => {
+      const txHash = "0xreftx";
+      const simulatedRequest = { address: ADDR, functionName: "refundByRecipient" };
+      const simulateContract = vi.fn().mockResolvedValue({ request: simulatedRequest });
+      const writeContract = vi.fn().mockResolvedValue(txHash);
+      const publicClient = { simulateContract };
+      const walletClient = { writeContract, account: { address: "0xexecutor" } };
+
+      const contract = new RefundProtocol({ publicClient, walletClient, address: ADDR });
+      const result = await contract.refundByRecipient(3n);
+
+      expect(result).toBe(txHash);
+      expect(simulateContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "refundByRecipient", args: [3n] }),
+      );
+      expect(writeContract).toHaveBeenCalledWith(simulatedRequest);
+    });
+
+    it("propagates simulateContract errors without sending tx", async () => {
+      const simulateContract = vi.fn().mockRejectedValue(new Error("CallerNotAllowed"));
+      const writeContract = vi.fn();
+      const publicClient = { simulateContract };
+      const walletClient = { writeContract, account: {} };
+
+      const contract = new RefundProtocol({ publicClient, walletClient, address: ADDR });
+      await expect(contract.refundByRecipient(0n)).rejects.toThrow("CallerNotAllowed");
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+  });
 });
