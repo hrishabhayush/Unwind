@@ -17,8 +17,9 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract RefundProtocol is EIP712, ReentrancyGuard {
+contract RefundProtocol is EIP712, ReentrancyGuard, Ownable {
     struct Payment {
         address to;
         uint256 amount;
@@ -84,8 +85,9 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
     error PayerIsZeroAddress();
     error RecipientIsZeroAddress();
 
-    constructor(address _arbiter, address _usdc, string memory eip712Name, string memory eip712version)
+    constructor(address _owner, address _arbiter, address _usdc, string memory eip712Name, string memory eip712version)
         EIP712(eip712Name, eip712version)
+        Ownable(_owner)
     {
         arbiter = _arbiter;
         fiatToken = IERC20(_usdc);
@@ -250,14 +252,11 @@ contract RefundProtocol is EIP712, ReentrancyGuard {
 
     /**
      * A function that returns a payment to the refundTo address to cover a refund or a chargeback.
-     * This function is callable only by the recipient of the payment, and can only be payed by the recipient.
+     * This function is callable only by the owner.
      * @param paymentID payment to refund
      */
-    function refundByRecipient(uint256 paymentID) external nonReentrant {
+    function refundByRecipient(uint256 paymentID) external onlyOwner nonReentrant {
         Payment memory payment = payments[paymentID];
-        if (msg.sender != payment.to) {
-            revert CallerNotAllowed();
-        }
 
         uint256 recipientBalance = balances[payment.to];
 

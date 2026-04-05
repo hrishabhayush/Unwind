@@ -19,13 +19,14 @@ contract DeployRefundProtocol is Script {
 
     function run() external {
         uint256 deployerPrivateKey = _envPrivateKey();
+        address owner = vm.envAddress("OWNER_ADDRESS");
         address arbiter = vm.envAddress("ARBITER_ADDRESS");
         address usdc = vm.envAddress("USDC_ADDRESS");
         string memory eip712Name = vm.envOr("EIP712_NAME", string("Refund Protocol"));
         string memory eip712Version = vm.envOr("EIP712_VERSION", string("1.0"));
 
         vm.startBroadcast(deployerPrivateKey);
-        RefundProtocol protocol = new RefundProtocol(arbiter, usdc, eip712Name, eip712Version);
+        RefundProtocol protocol = new RefundProtocol(owner, arbiter, usdc, eip712Name, eip712Version);
         vm.stopBroadcast();
 
         console2.log("chainId", block.chainid);

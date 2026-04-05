@@ -28,7 +28,7 @@ contract MerchantVaultTest is Test {
 
     function setUp() public {
         usdc = new MockERC20Vault("USDC", "USDC");
-        protocol = new RefundProtocol(arbiter, address(usdc), "Refund Protocol", "1.0");
+        protocol = new RefundProtocol(owner, arbiter, address(usdc), "Refund Protocol", "1.0");
         vault = new MerchantVault(owner, address(protocol), address(usdc));
         usdc.mint(address(vault), 10_000 ether);
     }

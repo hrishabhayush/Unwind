@@ -50,6 +50,7 @@ contract RefundProtocolTest is Test {
     uint256 public expiry = block.timestamp + 9999999;
     uint256 public receiverPrivateKey = 0x5678;
     uint256 public userPrivateKey = 0x1234;
+    address public owner = address(0x1111);
     address public arbiter = address(0xABCD);
     address public user = vm.addr(userPrivateKey);
     address public receiver = vm.addr(receiverPrivateKey);
@@ -58,7 +59,7 @@ contract RefundProtocolTest is Test {
 
     function setUp() public {
         usdc = new MockERC20("USD Coin", "USDC");
-        refundProtocol = new RefundProtocol(arbiter, address(usdc), "Refund Protocol", "1.0");
+        refundProtocol = new RefundProtocol(owner, arbiter, address(usdc), "Refund Protocol", "1.0");
         vault = new MerchantVault();
 
         // Mint USDC to user and approve the protocol
