@@ -16,6 +16,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "../src/RefundProtocol.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -182,7 +183,7 @@ contract RefundProtocolTest is Test {
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo, bytes32(0));
 
-        vm.prank(receiver);
+        vm.prank(owner);
         refundProtocol.refundByRecipient(0);
 
         uint256[] memory paymentIDs = new uint256[](1);
@@ -470,7 +471,7 @@ contract RefundProtocolTest is Test {
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo, bytes32(0));
 
-        vm.prank(receiver);
+        vm.prank(owner);
         refundProtocol.refundByRecipient(0);
 
         uint256[] memory paymentIDs = new uint256[](1);
@@ -595,7 +596,7 @@ contract RefundProtocolTest is Test {
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo, bytes32(0));
 
-        vm.prank(receiver);
+        vm.prank(owner);
         refundProtocol.refundByRecipient(0);
 
         assertEq(usdc.balanceOf(refundTo), 100);
@@ -611,7 +612,7 @@ contract RefundProtocolTest is Test {
         refundProtocol.pay(receiver, 100, refundTo, bytes32(0));
 
         vm.prank(user);
-        vm.expectRevert(RefundProtocol.CallerNotAllowed.selector);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         refundProtocol.refundByRecipient(0);
     }
 
@@ -759,7 +760,7 @@ contract RefundProtocolTest is Test {
         // Warp past releaseTimestamp (refund expiry)
         vm.warp(block.timestamp + 3600);
 
-        vm.prank(receiver);
+        vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(RefundProtocol.RefundWindowExpired.selector, 0));
         refundProtocol.refundByRecipient(0);
     }
@@ -789,7 +790,7 @@ contract RefundProtocolTest is Test {
         // Refund during lockup (before releaseTimestamp) should succeed
         vm.warp(block.timestamp + 1800); // halfway through lockup
 
-        vm.prank(receiver);
+        vm.prank(owner);
         refundProtocol.refundByRecipient(0);
 
         assertEq(usdc.balanceOf(refundTo), 100);
@@ -879,8 +880,8 @@ contract RefundProtocolTest is Test {
         vm.prank(user);
         refundProtocol.pay(receiver, 100, refundTo, bytes32(0));
 
-        // Refund during lockup
-        vm.prank(receiver);
+        // Refund during lockup (POS admin / protocol owner)
+        vm.prank(owner);
         refundProtocol.refundByRecipient(0);
 
         uint256 reclaimGracePeriod = refundProtocol.RECLAIM_GRACE_PERIOD();
