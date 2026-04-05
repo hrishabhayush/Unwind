@@ -9,6 +9,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { RefundProtocol } from "./contracts/RefundProtocol.mjs";
 import { MerchantVault } from "./contracts/MerchantVault.mjs";
 import { getRpcTransport } from "./utils/rpc.mjs";
+import { MERCHANT_VAULT_ABI } from "./constants/merchantVaultAbi.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -123,9 +124,17 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
     const walletClient = createWalletClient({ chain: base, transport: getRpcTransport(base), account });
 
     const wcPaymentIdHash = keccak256(toBytes(paymentId));
-    console.log({ wcPaymentIdHash });
-    const refundProtocol = new RefundProtocol({ publicClient, address: refundProtocolAddress });
+
     const merchantVault = new MerchantVault({ publicClient, walletClient, address: merchantVaultAddress });
+
+    // Read RefundProtocol address from the vault itself — avoids env var mismatch after redeployments
+    const vaultRefundProtocolAddress = await publicClient.readContract({
+      address: merchantVaultAddress,
+      abi: MERCHANT_VAULT_ABI,
+      functionName: "refundProtocol",
+    });
+
+    const refundProtocol = new RefundProtocol({ publicClient, address: vaultRefundProtocolAddress });
 
     const existing = await refundProtocol.getInfo(wcPaymentIdHash);
     console.log({ existing });
@@ -160,11 +169,11 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
 app.post("/api/payments/:paymentId/refund", async (req, res) => {
   const { paymentId } = req.params;
   const executorKey = process.env.EXECUTOR_PRIVATE_KEY;
-  const contractAddress = process.env.REFUND_PROTOCOL_ADDRESS;
+  const merchantVaultAddress = process.env.MERCHANT_VAULT;
 
-  if (!executorKey || !contractAddress) {
+  if (!executorKey || !merchantVaultAddress) {
     return res.status(500).json({
-      error: "EXECUTOR_PRIVATE_KEY and REFUND_PROTOCOL_ADDRESS must be set in .env",
+      error: "EXECUTOR_PRIVATE_KEY and MERCHANT_VAULT must be set in .env",
     });
   }
 
@@ -176,6 +185,13 @@ app.post("/api/payments/:paymentId/refund", async (req, res) => {
 
     // 2. Compute wcPaymentIdHash = keccak256(bytes(paymentId))
     const wcPaymentIdHash = keccak256(toBytes(paymentId));
+
+    // Read RefundProtocol address from the vault — single source of truth
+    const contractAddress = await publicClient.readContract({
+      address: merchantVaultAddress,
+      abi: MERCHANT_VAULT_ABI,
+      functionName: "refundProtocol",
+    });
 
     const refundProtocol = new RefundProtocol({ publicClient, walletClient, address: contractAddress });
 
