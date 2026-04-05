@@ -1,8 +1,9 @@
 import { REFUND_PROTOCOL_ABI } from "../constants/refundProtocolAbi.mjs";
 
 export class RefundProtocol {
-  constructor({ publicClient, address }) {
+  constructor({ publicClient, walletClient, address }) {
     this.publicClient = publicClient;
+    this.walletClient = walletClient ?? null;
     this.address = address;
   }
 
@@ -40,5 +41,22 @@ export class RefundProtocol {
       functionName: "paymentIdForWcHash",
       args: [wcPaymentIdHash],
     });
+  }
+
+  /**
+   * Simulates then submits refundByRecipient.
+   * @param {bigint} paymentID
+   * @returns {Promise<`0x${string}`>} txHash
+   */
+  async refundByRecipient(paymentID) {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.address,
+      abi: REFUND_PROTOCOL_ABI,
+      functionName: "refundByRecipient",
+      args: [paymentID],
+      account: this.walletClient.account,
+    });
+
+    return this.walletClient.writeContract(request);
   }
 }

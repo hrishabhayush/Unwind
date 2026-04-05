@@ -6,7 +6,6 @@ import { dirname, join } from "path";
 import { createPublicClient, createWalletClient, http, keccak256, toBytes } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { REFUND_PROTOCOL_ABI } from "./constants/refundProtocolAbi.mjs";
 import { RefundProtocol } from "./contracts/RefundProtocol.mjs";
 import { MerchantVault } from "./contracts/MerchantVault.mjs";
 import { getRpcTransport } from "./utils/rpc.mjs";
@@ -134,7 +133,7 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
     const wcPaymentIdHash = keccak256(toBytes(paymentId));
 
     const refundProtocol = new RefundProtocol({ publicClient, address: refundProtocolAddress });
-    const merchantVault = new MerchantVault({ walletClient, address: merchantVaultAddress });
+    const merchantVault = new MerchantVault({ publicClient, walletClient, address: merchantVaultAddress });
 
     const existing = await refundProtocol.getInfo(wcPaymentIdHash);
     if (existing !== null) {
@@ -157,6 +156,10 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
     escrowCache.set(paymentId, { txHash, escrowedAt: Date.now() });
     return res.json({ txHash });
   } catch (e) {
+    const revertData = e?.cause?.data ?? e?.data;
+    if (revertData?.errorName === "WcPaymentIdAlreadyUsed") {
+      return res.status(409).json({ error: "already escrowed" });
+    }
     return res.status(500).json({ error: String(e.message || e) });
   }
 });
@@ -181,7 +184,7 @@ app.post("/api/payments/:paymentId/refund", async (req, res) => {
     // 2. Compute wcPaymentIdHash = keccak256(bytes(paymentId))
     const wcPaymentIdHash = keccak256(toBytes(paymentId));
 
-    const refundProtocol = new RefundProtocol({ publicClient, address: contractAddress });
+    const refundProtocol = new RefundProtocol({ publicClient, walletClient, address: contractAddress });
 
     // 3. Read getInfo → log payer + amount
     const { payer, amount } = await refundProtocol.getInfo(wcPaymentIdHash);
@@ -191,12 +194,7 @@ app.post("/api/payments/:paymentId/refund", async (req, res) => {
     const paymentID = await refundProtocol.paymentIdForWcHash(wcPaymentIdHash);
 
     // 5. Execute on-chain refund
-    const txHash = await walletClient.writeContract({
-      address: contractAddress,
-      abi: REFUND_PROTOCOL_ABI,
-      functionName: "refundByRecipient",
-      args: [paymentID],
-    });
+    const txHash = await refundProtocol.refundByRecipient(paymentID);
 
     // 6. All on-chain steps succeeded — cancel the payment on WC Pay
     // 400 = already cancelled / not cancellable, safe to ignore

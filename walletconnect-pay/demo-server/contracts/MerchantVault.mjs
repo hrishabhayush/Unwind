@@ -1,22 +1,29 @@
 import { MERCHANT_VAULT_ABI } from "../constants/merchantVaultAbi.mjs";
 
 export class MerchantVault {
-  constructor({ walletClient, address }) {
+  constructor({ publicClient, walletClient, address }) {
+    this.publicClient = publicClient;
     this.walletClient = walletClient;
     this.address = address;
   }
 
   /**
-   * Moves USDC from the vault into RefundProtocol escrow.
+   * Simulates then submits escrowToRefundProtocol.
+   * Simulation catches reverts (e.g. WcPaymentIdAlreadyUsed) before spending gas.
    * @param {{ recipient: string, payer: string, amount: string, refundTo: string, wcPaymentIdHash: `0x${string}` }} params
    * @returns {Promise<`0x${string}`>} txHash
    */
   async escrowToRefundProtocol({ recipient, payer, amount, refundTo, wcPaymentIdHash }) {
-    return this.walletClient.writeContract({
+    const args = [recipient, payer, BigInt(amount), refundTo, wcPaymentIdHash];
+
+    const { request } = await this.publicClient.simulateContract({
       address: this.address,
       abi: MERCHANT_VAULT_ABI,
       functionName: "escrowToRefundProtocol",
-      args: [recipient, payer, BigInt(amount), refundTo, wcPaymentIdHash],
+      args,
+      account: this.walletClient.account,
     });
+
+    return this.walletClient.writeContract(request);
   }
 }

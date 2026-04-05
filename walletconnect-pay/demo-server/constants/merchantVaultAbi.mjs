@@ -12,4 +12,12 @@ export const MERCHANT_VAULT_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  // RefundProtocol errors that bubble up through escrowToRefundProtocol
+  { inputs: [], name: "WcPaymentIdAlreadyUsed", type: "error" },
+  { inputs: [], name: "WcPaymentHashUnknown", type: "error" },
+  { inputs: [], name: "PayerIsZeroAddress", type: "error" },
+  { inputs: [], name: "RecipientIsZeroAddress", type: "error" },
+  { inputs: [], name: "RefundToIsZeroAddress", type: "error" },
+  { inputs: [], name: "InsufficientFunds", type: "error" },
+  { inputs: [], name: "ZeroAddress", type: "error" },
 ];
