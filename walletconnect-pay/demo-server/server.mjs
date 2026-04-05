@@ -18,9 +18,6 @@ const MERCHANT_ID = process.env.WCP_MERCHANT_ID;
 
 const app = express();
 
-/** paymentId → { txHash: string, escrowedAt: number } */
-const escrowCache = new Map();
-
 // CORS so the RN/web app can call this server
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -120,11 +117,6 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
     return res.status(400).json({ error: "recipient, payer, amount, and refundTo are required" });
   }
 
-  const cached = escrowCache.get(paymentId);
-  if (cached) {
-    return res.status(409).json({ error: "already escrowed", txHash: cached.txHash });
-  }
-
   try {
     const publicClient = createPublicClient({ chain: base, transport: getRpcTransport(base) });
     const account = privateKeyToAccount(executorKey);
@@ -153,7 +145,6 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
       return res.status(500).json({ error: "transaction reverted", txHash });
     }
 
-    escrowCache.set(paymentId, { txHash, escrowedAt: Date.now() });
     return res.json({ txHash });
   } catch (e) {
     const revertData = e?.cause?.data ?? e?.data;
@@ -187,7 +178,11 @@ app.post("/api/payments/:paymentId/refund", async (req, res) => {
     const refundProtocol = new RefundProtocol({ publicClient, walletClient, address: contractAddress });
 
     // 3. Read getInfo → log payer + amount
-    const { payer, amount } = await refundProtocol.getInfo(wcPaymentIdHash);
+    const info = await refundProtocol.getInfo(wcPaymentIdHash);
+    if (!info) {
+      return res.status(404).json({ error: "payment not found in escrow" });
+    }
+    const { payer, amount } = info;
     console.log(`Refund info — payer: ${payer}, amount: ${amount.toString()} (USDC base units)`);
 
     // 4. Resolve uint256 paymentID from wcPaymentIdHash
