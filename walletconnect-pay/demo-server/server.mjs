@@ -123,13 +123,14 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
     const walletClient = createWalletClient({ chain: base, transport: getRpcTransport(base), account });
 
     const wcPaymentIdHash = keccak256(toBytes(paymentId));
-
+    console.log({ wcPaymentIdHash });
     const refundProtocol = new RefundProtocol({ publicClient, address: refundProtocolAddress });
     const merchantVault = new MerchantVault({ publicClient, walletClient, address: merchantVaultAddress });
 
     const existing = await refundProtocol.getInfo(wcPaymentIdHash);
+    console.log({ existing });
     if (existing !== null) {
-      return res.status(409).json({ error: "already escrowed" });
+      return res.status(409).json({ error: "already escrowed, not equal to null" });
     }
 
     const txHash = await merchantVault.escrowToRefundProtocol({
@@ -149,7 +150,8 @@ app.post("/api/payments/:paymentId/escrow", async (req, res) => {
   } catch (e) {
     const revertData = e?.cause?.data ?? e?.data;
     if (revertData?.errorName === "WcPaymentIdAlreadyUsed") {
-      return res.status(409).json({ error: "already escrowed" });
+      console.error({ revertData });
+      return res.status(409).json({ error: "already escrowed, unexpected error" });
     }
     return res.status(500).json({ error: String(e.message || e) });
   }
